@@ -1,0 +1,30 @@
+[project]
+name = "support-nova"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "Omer Altaf", email = "Umermirani709@gmail.com" }
+]
+requires-python = ">=3.13"
+dependencies = [
+    "django>=6.1.1",
+    "django-ninja>=1.7.1",
+    "email-validator>=2.3.0",
+    "faiss-cpu>=1.15.1",
+    "fastembed>=0.8.1",
+    "openai>=3.19.2",
+    "openpyxl>=3.1.5",
+    "pandas>=3.0.6",
+    "pyjwt>=2.15.0",
+    "pymupdf>=1.28.2",
+    "python-docx>=1.2.0",
+    "python-dotenv>=1.2.3",
+]
+
+[project.scripts]
+support-nova = "support_nova:main"
+
+[build-system]
+requires = ["uv_build>=0.12.17,<0.13.0"]
+build-backend = "uv_build"

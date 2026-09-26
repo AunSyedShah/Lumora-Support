@@ -1,0 +1,1062 @@
+{
+  "departments": [
+    {
+      "code": "BILLING",
+      "name": "Billing & Payments",
+      "description": "Charges, invoices, payment methods and subscription billing."
+    },
+    {
+      "code": "LOGISTICS",
+      "name": "Logistics & Delivery",
+      "description": "Shipping, couriers, lost or damaged parcels."
+    },
+    {
+      "code": "RETURNS",
+      "name": "Returns & Refunds",
+      "description": "Returns, refunds and refund disputes."
+    },
+    {
+      "code": "WARRANTY",
+      "name": "Warranty & Repairs",
+      "description": "Defective devices, warranty claims, repairs and replacements."
+    },
+    {
+      "code": "TECH_SUPPORT",
+      "name": "Technical Support",
+      "description": "Lumora app, firmware, connectivity and device pairing."
+    },
+    {
+      "code": "INSTALLATION",
+      "name": "Installation Services",
+      "description": "Professional installation appointments and technicians."
+    },
+    {
+      "code": "ACCOUNT_SECURITY",
+      "name": "Account Security",
+      "description": "Account access, lockouts, unauthorized logins and orders."
+    },
+    {
+      "code": "PRIVACY",
+      "name": "Privacy & Compliance",
+      "description": "Personal data, camera footage, data deletion and marketing consent."
+    },
+    {
+      "code": "PRODUCT_SAFETY",
+      "name": "Product Safety",
+      "description": "Overheating, electrical hazards, fire and product recalls."
+    },
+    {
+      "code": "CUSTOMER_RELATIONS",
+      "name": "Customer Relations",
+      "description": "Service quality, staff behaviour and unresolved complaints."
+    },
+    {
+      "code": "MANAGEMENT",
+      "name": "Management Escalations",
+      "description": "Critical, legal or high-value cases needing senior management."
+    }
+  ],
+  "categories": [
+    {
+      "code": "DELIVERY",
+      "name": "Delivery",
+      "default_department": "LOGISTICS",
+      "subcategories": [
+        {
+          "code": "DELAYED_DELIVERY",
+          "name": "Delayed Delivery",
+          "keywords": [
+            "late delivery",
+            "delivery is late",
+            "delivery was late",
+            "delayed delivery",
+            "order is delayed",
+            "shipment is delayed",
+            "not arrived",
+            "hasn't arrived",
+            "has not arrived",
+            "still not arrived",
+            "still waiting for my order",
+            "still waiting for delivery",
+            "where is my order",
+            "not delivered yet",
+            "past the delivery date",
+            "missed the delivery date",
+            "overdue",
+            "still not here",
+            "not here yet",
+            "supposed to arrive",
+            "should have arrived",
+            "was due to arrive",
+            "hasn't come",
+            "has not come",
+            "still waiting for it"
+          ]
+        },
+        {
+          "code": "LOST_PARCEL",
+          "name": "Lost Parcel",
+          "keywords": [
+            "lost parcel",
+            "lost package",
+            "parcel is lost",
+            "package is lost",
+            "parcel was lost",
+            "package was lost",
+            "no tracking update",
+            "tracking hasn't updated",
+            "tracking has not updated",
+            "tracking stopped",
+            "marked as delivered",
+            "says delivered",
+            "shows delivered",
+            "never received",
+            "tracking has not moved",
+            "tracking hasn't moved",
+            "tracking is frozen",
+            "tracking seems frozen",
+            "tracking is stuck",
+            "parcel ~ never arrived",
+            "package ~ never arrived",
+            "order ~ never arrived",
+            "parcel ~ never showed up",
+            "package ~ never showed up"
+          ]
+        },
+        {
+          "code": "DAMAGED_IN_TRANSIT",
+          "name": "Damaged in Transit",
+          "keywords": [
+            "arrived damaged",
+            "damaged in transit",
+            "damaged during delivery",
+            "damaged during shipping",
+            "box was crushed",
+            "crushed box",
+            "damaged box",
+            "damaged packaging",
+            "cracked on arrival",
+            "arrived broken",
+            "broken on arrival",
+            "arrived cracked",
+            "arrived smashed",
+            "courier damaged"
+          ]
+        },
+        {
+          "code": "WRONG_ITEM",
+          "name": "Wrong Item Delivered",
+          "keywords": [
+            "wrong item",
+            "wrong product",
+            "wrong model",
+            "wrong colour",
+            "wrong color",
+            "not what i ordered",
+            "sent me the wrong",
+            "received the wrong",
+            "different item",
+            "incorrect item",
+            "sent the wrong",
+            "different model",
+            "wrong version",
+            "incorrect model",
+            "not what we ordered",
+            "isn't what we ordered",
+            "not the model i ordered",
+            "different ~ than i ordered",
+            "different ~ from the one i ordered",
+            "different ~ we ordered"
+          ]
+        }
+      ]
+    },
+    {
+      "code": "BILLING",
+      "name": "Billing",
+      "default_department": "BILLING",
+      "subcategories": [
+        {
+          "code": "DUPLICATE_CHARGE",
+          "name": "Duplicate Charge",
+          "keywords": [
+            "charged twice",
+            "double charged",
+            "double charge",
+            "duplicate charge",
+            "duplicate payment",
+            "charged two times",
+            "two charges",
+            "billed twice",
+            "same charge twice",
+            "paid twice"
+          ]
+        },
+        {
+          "code": "INCORRECT_CHARGE",
+          "name": "Incorrect Charge",
+          "keywords": [
+            "overcharged",
+            "wrong amount",
+            "incorrect charge",
+            "charged more",
+            "extra charge",
+            "hidden fee",
+            "unexpected fee",
+            "price was different",
+            "charged the wrong",
+            "higher than the price",
+            "price drop",
+            "price match",
+            "cheaper now"
+          ]
+        },
+        {
+          "code": "UNEXPECTED_RENEWAL",
+          "name": "Unexpected Renewal",
+          "keywords": [
+            "auto renewal",
+            "auto-renewal",
+            "automatically renewed",
+            "renewed without",
+            "unexpected renewal",
+            "renewal charge",
+            "didn't agree to renew",
+            "did not agree to renew",
+            "subscription renewed",
+            "renewed my subscription",
+            "renewed unexpectedly",
+            "unexpectedly renewed",
+            "renewed ~ expect",
+            "renew ~ expect",
+            "renewal ~ expect",
+            "renewed ~ charged my card",
+            "charged again for another"
+          ]
+        },
+        {
+          "code": "INVOICE_ERROR",
+          "name": "Invoice Error",
+          "keywords": [
+            "invoice is wrong",
+            "wrong invoice",
+            "incorrect invoice",
+            "invoice error",
+            "vat invoice",
+            "vat number",
+            "tax invoice",
+            "need an invoice",
+            "company name on the invoice",
+            "receipt is wrong",
+            "wrong receipt"
+          ]
+        }
+      ]
+    },
+    {
+      "code": "REFUND",
+      "name": "Refund",
+      "default_department": "RETURNS",
+      "subcategories": [
+        {
+          "code": "REFUND_DELAY",
+          "name": "Refund Delay",
+          "keywords": [
+            "refund not received",
+            "refund has not been processed",
+            "refund hasn't been processed",
+            "refund not processed",
+            "still waiting for my refund",
+            "waiting for my refund",
+            "refund is late",
+            "refund delayed",
+            "refund is delayed",
+            "where is my refund",
+            "no refund yet",
+            "refund still pending",
+            "haven't received my refund",
+            "have not received my refund",
+            "refund ~ hasn't arrived",
+            "refund ~ has not arrived",
+            "refund ~ not received",
+            "refund ~ still missing",
+            "refund ~ still waiting",
+            "refund ~ still hasn't",
+            "refund ~ still not"
+          ]
+        },
+        {
+          "code": "REFUND_DENIED",
+          "name": "Refund Denied",
+          "keywords": [
+            "refund denied",
+            "refund was denied",
+            "refused my refund",
+            "refund rejected",
+            "refund was rejected",
+            "won't refund",
+            "will not refund",
+            "not eligible for a refund",
+            "declined my refund",
+            "refuse to refund",
+            "refused a refund",
+            "refund ~ refused",
+            "refund ~ denied",
+            "refund ~ rejected",
+            "refund ~ declined",
+            "refund ~ turned down"
+          ]
+        },
+        {
+          "code": "PARTIAL_REFUND",
+          "name": "Partial Refund",
+          "keywords": [
+            "partial refund",
+            "only refunded part",
+            "restocking fee",
+            "not the full amount",
+            "refunded less",
+            "deducted from my refund",
+            "short refund",
+            "only got part of my money"
+          ]
+        }
+      ]
+    },
+    {
+      "code": "PRODUCT_DEFECT",
+      "name": "Product Defect",
+      "default_department": "WARRANTY",
+      "subcategories": [
+        {
+          "code": "DEAD_ON_ARRIVAL",
+          "name": "Dead on Arrival",
+          "department": "RETURNS",
+          "keywords": [
+            "dead on arrival",
+            "doesn't turn on",
+            "does not turn on",
+            "won't turn on",
+            "will not turn on",
+            "not powering on",
+            "won't power on",
+            "never worked",
+            "didn't work out of the box",
+            "dead out of the box",
+            "brand new and not working"
+          ]
+        },
+        {
+          "code": "HARDWARE_MALFUNCTION",
+          "name": "Hardware Malfunction",
+          "keywords": [
+            "stopped working",
+            "not working properly",
+            "malfunction",
+            "malfunctioning",
+            "faulty",
+            "keeps restarting",
+            "keeps rebooting",
+            "defective",
+            "button doesn't work",
+            "battery drains",
+            "battery dies",
+            "flickering",
+            "not responding",
+            "broke down",
+            "is broken",
+            "stopped responding",
+            "won't switch on",
+            "does not respond"
+          ],
+          "description": "A device that worked has developed a fault (stopped working, faulty, keeps restarting). Use this even when the customer asks for a repair or a replacement: the problem decides the subcategory, not the requested remedy."
+        },
+        {
+          "code": "MISSING_PARTS",
+          "name": "Missing Parts",
+          "department": "LOGISTICS",
+          "keywords": [
+            "missing parts",
+            "missing part",
+            "missing cable",
+            "missing charger",
+            "missing screws",
+            "missing mount",
+            "missing accessory",
+            "missing accessories",
+            "not in the box",
+            "box was missing",
+            "incomplete package",
+            "parts missing",
+            "no power adapter"
+          ]
+        }
+      ]
+    },
+    {
+      "code": "WARRANTY",
+      "name": "Warranty",
+      "default_department": "WARRANTY",
+      "subcategories": [
+        {
+          "code": "CLAIM_REJECTED",
+          "name": "Warranty Claim Rejected",
+          "keywords": [
+            "warranty claim rejected",
+            "warranty claim was rejected",
+            "warranty rejected",
+            "warranty denied",
+            "warranty claim denied",
+            "claim was denied",
+            "not covered by warranty",
+            "refused warranty",
+            "warranty void",
+            "voided my warranty",
+            "claim ~ rejected",
+            "claim ~ denied",
+            "claim ~ refused",
+            "claim ~ declined",
+            "warranty ~ rejected"
+          ]
+        },
+        {
+          "code": "REPAIR_DELAY",
+          "name": "Repair Delay",
+          "keywords": [
+            "repair is taking",
+            "repair delay",
+            "still being repaired",
+            "repair taking too long",
+            "waiting for the repair",
+            "waiting for repair",
+            "repair not completed",
+            "sent for repair",
+            "repair status",
+            "repair still not done",
+            "warranty repair",
+            "sent it in for repair",
+            "sent in for repair",
+            "sent it for repair",
+            "repair ~ taking",
+            "repair ~ too long",
+            "repair ~ still not",
+            "repair ~ waiting"
+          ]
+        },
+        {
+          "code": "REPLACEMENT_REQUEST",
+          "name": "Replacement Request",
+          "keywords": [
+            "second replacement",
+            "already replaced",
+            "replaced before",
+            "another replacement",
+            "replacement ~ promised",
+            "replacement ~ agreed",
+            "replacement ~ approved",
+            "replacement ~ not arrived",
+            "replacement ~ hasn't arrived",
+            "replacement ~ never arrived",
+            "replacement ~ still waiting",
+            "waiting for the replacement",
+            "replacement ~ not been sent",
+            "replacement is also",
+            "replacement has also",
+            "the replacement also",
+            "replacement also stopped"
+          ],
+          "description": "About a replacement itself: a replacement that was agreed but has not been sent, or a device that was already replaced before and needs replacing again. A newly reported fault is HARDWARE_MALFUNCTION even if the customer asks for a replacement.",
+          "takes_precedence_over": [
+            "HARDWARE_MALFUNCTION"
+          ]
+        }
+      ]
+    },
+    {
+      "code": "TECH_SUPPORT",
+      "name": "Technical Support",
+      "default_department": "TECH_SUPPORT",
+      "subcategories": [
+        {
+          "code": "APP_CONNECTIVITY",
+          "name": "App Connectivity",
+          "keywords": [
+            "app not connecting",
+            "app won't connect",
+            "app can't connect",
+            "offline in the app",
+            "shows offline",
+            "device offline",
+            "devices offline",
+            "can't connect",
+            "cannot connect",
+            "connection lost",
+            "app keeps crashing",
+            "app crashes",
+            "keeps disconnecting",
+            "wifi keeps dropping",
+            "shows as offline",
+            "showing offline",
+            "showing as offline",
+            "appears offline",
+            "went offline",
+            "keeps going offline",
+            "won't connect",
+            "will not connect",
+            "not connecting",
+            "offline ~ app"
+          ]
+        },
+        {
+          "code": "FIRMWARE_UPDATE_FAILURE",
+          "name": "Firmware Update Failure",
+          "keywords": [
+            "firmware",
+            "update failed",
+            "update failure",
+            "stuck updating",
+            "update stuck",
+            "after the update",
+            "since the update",
+            "bricked",
+            "software update",
+            "firmware update",
+            "after the firmware",
+            "since the firmware",
+            "update ~ broke",
+            "update ~ stopped",
+            "after that update"
+          ],
+          "description": "The problem started with or after a firmware or software update.",
+          "takes_precedence_over": [
+            "HARDWARE_MALFUNCTION",
+            "DEAD_ON_ARRIVAL"
+          ]
+        },
+        {
+          "code": "DEVICE_PAIRING",
+          "name": "Device Pairing",
+          "keywords": [
+            "pairing",
+            "won't pair",
+            "can't pair",
+            "cannot pair",
+            "pair with the hub",
+            "add the device",
+            "adding the device",
+            "setup fails",
+            "setup failed",
+            "can't set up",
+            "cannot set up",
+            "bluetooth",
+            "will not pair",
+            "failed to pair",
+            "fails to pair",
+            "refuses to pair",
+            "unable to pair",
+            "doesn't pair",
+            "does not pair"
+          ]
+        }
+      ]
+    },
+    {
+      "code": "INSTALLATION",
+      "name": "Installation",
+      "default_department": "INSTALLATION",
+      "subcategories": [
+        {
+          "code": "MISSED_APPOINTMENT",
+          "name": "Missed Appointment",
+          "keywords": [
+            "missed appointment",
+            "missed the appointment",
+            "technician didn't show",
+            "technician did not show",
+            "no one showed up",
+            "nobody showed up",
+            "didn't turn up",
+            "did not turn up",
+            "installer never came",
+            "technician never came",
+            "no show",
+            "waited all day",
+            "technician never",
+            "installer never",
+            "didn't show up",
+            "did not show up",
+            "appointment ~ never",
+            "appointment ~ nobody",
+            "appointment ~ no one",
+            "technician ~ didn't arrive",
+            "technician ~ did not arrive",
+            "technician ~ never arrived"
+          ]
+        },
+        {
+          "code": "FAULTY_INSTALLATION",
+          "name": "Faulty Installation",
+          "keywords": [
+            "installed incorrectly",
+            "bad installation",
+            "faulty installation",
+            "poor installation",
+            "installation was wrong",
+            "installer broke",
+            "wired wrong",
+            "wired incorrectly",
+            "mounted crooked",
+            "since the installation",
+            "after the installation",
+            "damaged my wall",
+            "installation ~ badly",
+            "installation ~ poorly",
+            "install ~ badly",
+            "installed ~ badly",
+            "installation ~ wrong",
+            "installation ~ damage",
+            "installer ~ damage",
+            "shoddy installation",
+            "sloppy installation",
+            "botched installation"
+          ]
+        }
+      ]
+    },
+    {
+      "code": "SUBSCRIPTION",
+      "name": "Subscription (LumoraCare+)",
+      "default_department": "BILLING",
+      "subcategories": [
+        {
+          "code": "CANCELLATION_ISSUE",
+          "name": "Cancellation Issue",
+          "keywords": [
+            "cancel my subscription",
+            "cancel subscription",
+            "can't cancel",
+            "cannot cancel",
+            "unable to cancel",
+            "won't let me cancel",
+            "cancellation",
+            "still charged after cancel",
+            "charged after cancelling",
+            "charged after i cancelled",
+            "charged after i canceled"
+          ]
+        },
+        {
+          "code": "PLAN_CHANGE",
+          "name": "Plan Change",
+          "keywords": [
+            "change my plan",
+            "upgrade my plan",
+            "downgrade",
+            "switch plan",
+            "switch my plan",
+            "change plan",
+            "plan change",
+            "yearly plan",
+            "monthly plan",
+            "annual plan"
+          ]
+        },
+        {
+          "code": "FEATURE_UNAVAILABLE",
+          "name": "Feature Unavailable",
+          "department": "TECH_SUPPORT",
+          "keywords": [
+            "cloud recording",
+            "cloud storage",
+            "recordings missing",
+            "no recordings",
+            "video history",
+            "feature not available",
+            "feature missing",
+            "clips not saved",
+            "motion clips",
+            "paying for lumoracare"
+          ]
+        }
+      ]
+    },
+    {
+      "code": "ACCOUNT_SECURITY",
+      "name": "Account & Security",
+      "default_department": "ACCOUNT_SECURITY",
+      "subcategories": [
+        {
+          "code": "ACCOUNT_LOCKED",
+          "name": "Account Locked",
+          "keywords": [
+            "account locked",
+            "account is locked",
+            "locked out of my account",
+            "can't log in",
+            "cannot log in",
+            "can't login",
+            "unable to log in",
+            "password reset not working",
+            "reset link",
+            "two-factor",
+            "2fa code",
+            "verification code",
+            "locked out",
+            "can't sign in",
+            "cannot sign in",
+            "unable to sign in",
+            "won't let me log in",
+            "can't access my account",
+            "cannot access my account",
+            "can't get into my account",
+            "access denied"
+          ]
+        },
+        {
+          "code": "UNAUTHORIZED_ACCESS",
+          "name": "Unauthorized Access",
+          "keywords": [
+            "someone logged into",
+            "someone logged in to",
+            "someone accessed my account",
+            "unknown login",
+            "unknown device",
+            "account hacked",
+            "account was hacked",
+            "hacked",
+            "someone changed my password",
+            "suspicious login",
+            "login i don't recognise",
+            "login i don't recognize",
+            "someone else logged",
+            "someone else had logged",
+            "someone else got into",
+            "someone else accessed",
+            "unauthorized access",
+            "unauthorised access",
+            "unauthorized login",
+            "unauthorised login",
+            "login ~ not me",
+            "logged in ~ not me",
+            "got into my account"
+          ]
+        },
+        {
+          "code": "UNAUTHORIZED_ORDER",
+          "name": "Unauthorized Order",
+          "keywords": [
+            "didn't place this order",
+            "did not place this order",
+            "order i didn't make",
+            "order i did not make",
+            "unauthorized order",
+            "unauthorised order",
+            "someone ordered",
+            "fraudulent order",
+            "i never ordered",
+            "didn't order this"
+          ]
+        }
+      ]
+    },
+    {
+      "code": "PRIVACY",
+      "name": "Privacy",
+      "default_department": "PRIVACY",
+      "subcategories": [
+        {
+          "code": "FOOTAGE_EXPOSURE",
+          "name": "Camera Footage Exposure",
+          "keywords": [
+            "footage exposed",
+            "footage leaked",
+            "footage was shared",
+            "see my footage",
+            "saw my footage",
+            "someone else's footage",
+            "someone else's camera",
+            "another person's camera",
+            "stranger's camera",
+            "other people's cameras",
+            "other people's videos",
+            "my camera feed",
+            "live feed",
+            "video leak",
+            "recordings are public",
+            "another household",
+            "another home",
+            "different house",
+            "not from my home",
+            "footage ~ not mine",
+            "footage ~ didn't belong",
+            "footage ~ did not belong",
+            "feed ~ not mine",
+            "someone else's home"
+          ]
+        },
+        {
+          "code": "DATA_DELETION_REQUEST",
+          "name": "Data Deletion Request",
+          "keywords": [
+            "delete my data",
+            "delete all my data",
+            "delete my account",
+            "remove my data",
+            "erase my data",
+            "right to be forgotten",
+            "data deletion",
+            "deletion request",
+            "delete my personal data",
+            "delete all my personal data",
+            "delete ~ personal data",
+            "delete everything",
+            "data ~ deleted",
+            "erase ~ data",
+            "remove ~ personal data"
+          ]
+        },
+        {
+          "code": "UNWANTED_MARKETING",
+          "name": "Unwanted Marketing",
+          "keywords": [
+            "marketing emails",
+            "promotional emails",
+            "spam",
+            "unsubscribe",
+            "unsubscribed",
+            "newsletter",
+            "marketing messages",
+            "promotional sms",
+            "stop sending me",
+            "keep emailing me",
+            "keep texting me"
+          ]
+        }
+      ]
+    },
+    {
+      "code": "SAFETY",
+      "name": "Safety",
+      "default_department": "PRODUCT_SAFETY",
+      "subcategories": [
+        {
+          "code": "OVERHEATING",
+          "name": "Overheating / Burning Smell",
+          "keywords": [
+            "overheating",
+            "overheated",
+            "overheats",
+            "too hot",
+            "very hot",
+            "hot to touch",
+            "hot to the touch",
+            "burning smell",
+            "smell of burning",
+            "smells like burning",
+            "burning plastic",
+            "melting",
+            "melted",
+            "scorch marks",
+            "scorched",
+            "dangerously hot",
+            "gets hot",
+            "getting hot",
+            "extremely hot",
+            "really hot",
+            "so hot",
+            "heats up"
+          ]
+        },
+        {
+          "code": "ELECTRIC_SHOCK",
+          "name": "Electric Shock",
+          "keywords": [
+            "electric shock",
+            "got a shock",
+            "gave me a shock",
+            "shocked me",
+            "electrocuted",
+            "tingling",
+            "live wire",
+            "exposed wire",
+            "exposed wires"
+          ]
+        },
+        {
+          "code": "SMOKE_FIRE",
+          "name": "Smoke / Fire",
+          "keywords": [
+            "smoke",
+            "smoking",
+            "caught fire",
+            "on fire",
+            "flames",
+            "sparks",
+            "sparking",
+            "exploded",
+            "explosion"
+          ]
+        }
+      ]
+    },
+    {
+      "code": "SERVICE_QUALITY",
+      "name": "Service Quality",
+      "default_department": "CUSTOMER_RELATIONS",
+      "subcategories": [
+        {
+          "code": "STAFF_BEHAVIOUR",
+          "name": "Staff Behaviour",
+          "keywords": [
+            "rude",
+            "impolite",
+            "unprofessional",
+            "shouted",
+            "yelled",
+            "insulted",
+            "disrespectful",
+            "arrogant",
+            "hung up on me",
+            "bad attitude",
+            "threatened me",
+            "harassed"
+          ]
+        },
+        {
+          "code": "UNRESOLVED_PREVIOUS",
+          "name": "Unresolved Previous Complaint",
+          "keywords": [
+            "still not resolved",
+            "still unresolved",
+            "not been resolved",
+            "complained before",
+            "already complained",
+            "third time",
+            "second time",
+            "fourth time",
+            "again and again",
+            "previous complaint",
+            "nobody fixed",
+            "same issue again",
+            "same problem again"
+          ],
+          "description": "The customer says an earlier contact was not resolved but does NOT describe the problem itself. If the problem is described (a late order, a faulty device, a charge...), use that problem's subcategory; earlier complaints are counted automatically.",
+          "is_fallback": true
+        },
+        {
+          "code": "POOR_COMMUNICATION",
+          "name": "Poor Communication",
+          "keywords": [
+            "no response",
+            "no reply",
+            "nobody replied",
+            "never replied",
+            "no one got back",
+            "didn't get back to me",
+            "ignored my emails",
+            "no update",
+            "no updates",
+            "kept me waiting",
+            "no communication",
+            "can't reach anyone",
+            "cannot reach anyone"
+          ]
+        }
+      ]
+    }
+  ],
+  "sla_rules": [
+    {
+      "priority": "P0",
+      "response_hours": 1,
+      "resolution_hours": 24,
+      "at_risk_percent": 50
+    },
+    {
+      "priority": "P1",
+      "response_hours": 4,
+      "resolution_hours": 48,
+      "at_risk_percent": 75
+    },
+    {
+      "priority": "P2",
+      "response_hours": 8,
+      "resolution_hours": 72,
+      "at_risk_percent": 75
+    },
+    {
+      "priority": "P3",
+      "response_hours": 24,
+      "resolution_hours": 120,
+      "at_risk_percent": 80
+    }
+  ],
+  "products": [
+    {
+      "code": "HUB",
+      "name": "Lumora Hub",
+      "kind": "device",
+      "price": 129
+    },
+    {
+      "code": "PLUG",
+      "name": "Smart Plug",
+      "kind": "device",
+      "price": 29
+    },
+    {
+      "code": "BULB",
+      "name": "Smart Bulb",
+      "kind": "device",
+      "price": 19
+    },
+    {
+      "code": "CAM_IN",
+      "name": "Indoor Camera",
+      "kind": "device",
+      "price": 79
+    },
+    {
+      "code": "CAM_OUT",
+      "name": "Outdoor Camera",
+      "kind": "device",
+      "price": 149
+    },
+    {
+      "code": "DOORBELL",
+      "name": "Video Doorbell",
+      "kind": "device",
+      "price": 179
+    },
+    {
+      "code": "THERMO",
+      "name": "Smart Thermostat",
+      "kind": "device",
+      "price": 229
+    },
+    {
+      "code": "LOCK",
+      "name": "Smart Lock",
+      "kind": "device",
+      "price": 249
+    },
+    {
+      "code": "INSTALL",
+      "name": "Professional Installation",
+      "kind": "service",
+      "price": 99
+    },
+    {
+      "code": "CARE_MONTHLY",
+      "name": "LumoraCare+ Monthly",
+      "kind": "service",
+      "price": 9.99
+    },
+    {
+      "code": "CARE_YEARLY",
+      "name": "LumoraCare+ Yearly",
+      "kind": "service",
+      "price": 99
+    }
+  ]
+}

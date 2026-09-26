@@ -1,0 +1,194 @@
+{
+  "complaints": 100,
+  "accuracy_percent": {
+    "python": {
+      "category": 67.3,
+      "subcategory": 60.2,
+      "department": 70.4,
+      "urgency": 72.4,
+      "priority": 72.4,
+      "escalation": 90.8,
+      "all_fields": 58.2
+    },
+    "genai": {
+      "category": 91.8,
+      "subcategory": 88.8,
+      "department": 92.9,
+      "urgency": 63.3,
+      "priority": 63.3,
+      "escalation": 71.4,
+      "all_fields": 42.9
+    },
+    "final": {
+      "category": 91.8,
+      "subcategory": 88.8,
+      "department": 91.8,
+      "urgency": 92.9,
+      "priority": 92.9,
+      "escalation": 83.7,
+      "all_fields": 72.4
+    }
+  },
+  "by_group": {
+    "ambiguous": {
+      "complaints": 2,
+      "final_all_fields_percent": null,
+      "final_priority_percent": null,
+      "final_escalation_percent": null
+    },
+    "calm_critical": {
+      "complaints": 2,
+      "final_all_fields_percent": 100.0,
+      "final_priority_percent": 100.0,
+      "final_escalation_percent": 100.0
+    },
+    "contradictory": {
+      "complaints": 2,
+      "final_all_fields_percent": 100.0,
+      "final_priority_percent": 100.0,
+      "final_escalation_percent": 100.0
+    },
+    "core": {
+      "complaints": 57,
+      "final_all_fields_percent": 80.7,
+      "final_priority_percent": 94.7,
+      "final_escalation_percent": 91.2
+    },
+    "difficult_policy": {
+      "complaints": 5,
+      "final_all_fields_percent": 100.0,
+      "final_priority_percent": 100.0,
+      "final_escalation_percent": 100.0
+    },
+    "escalation": {
+      "complaints": 8,
+      "final_all_fields_percent": 62.5,
+      "final_priority_percent": 100.0,
+      "final_escalation_percent": 100.0
+    },
+    "incomplete": {
+      "complaints": 3,
+      "final_all_fields_percent": 100.0,
+      "final_priority_percent": 100.0,
+      "final_escalation_percent": 100.0
+    },
+    "multi_issue": {
+      "complaints": 5,
+      "final_all_fields_percent": 40.0,
+      "final_priority_percent": 80.0,
+      "final_escalation_percent": 60.0
+    },
+    "near_duplicate": {
+      "complaints": 3,
+      "final_all_fields_percent": 66.7,
+      "final_priority_percent": 100.0,
+      "final_escalation_percent": 66.7
+    },
+    "policy_exception": {
+      "complaints": 2,
+      "final_all_fields_percent": 0.0,
+      "final_priority_percent": 50.0,
+      "final_escalation_percent": 50.0
+    },
+    "prompt_injection": {
+      "complaints": 5,
+      "final_all_fields_percent": 60.0,
+      "final_priority_percent": 100.0,
+      "final_escalation_percent": 60.0
+    },
+    "repeat": {
+      "complaints": 4,
+      "final_all_fields_percent": 0.0,
+      "final_priority_percent": 50.0,
+      "final_escalation_percent": 0.0
+    },
+    "unsupported_refund": {
+      "complaints": 2,
+      "final_all_fields_percent": 50.0,
+      "final_priority_percent": 100.0,
+      "final_escalation_percent": 50.0
+    }
+  },
+  "intake": {
+    "injection_cases": 5,
+    "injection_flagged_at_intake": 1,
+    "injection_detected_by_genai": 5,
+    "false_injection_flags": 0,
+    "repeat_or_duplicate_cases": 7,
+    "linked_to_the_right_complaint": 7,
+    "match_type_correct": 4,
+    "unrelated_complaints_wrongly_linked": 0,
+    "fact_mismatches": 0
+  },
+  "review": {
+    "needed_review": 10,
+    "sent_to_review": 8,
+    "review_recall_percent": 80.0,
+    "other_complaints_sent_to_review_percent": 67.8,
+    "by_group_percent": {
+      "ambiguous": 100.0,
+      "calm_critical": 50.0,
+      "contradictory": 50.0,
+      "core": 61.4,
+      "difficult_policy": 40.0,
+      "escalation": 100.0,
+      "incomplete": 33.3,
+      "multi_issue": 80.0,
+      "near_duplicate": 66.7,
+      "policy_exception": 100.0,
+      "prompt_injection": 100.0,
+      "repeat": 100.0,
+      "unsupported_refund": 100.0
+    }
+  },
+  "confusions": {
+    "final_priority": [
+      [
+        "P2->P3",
+        3
+      ],
+      [
+        "P3->P2",
+        2
+      ],
+      [
+        "P2->P1",
+        2
+      ]
+    ],
+    "final_subcategory": [
+      [
+        "FIRMWARE_UPDATE_FAILURE->REPLACEMENT_REQUEST",
+        2
+      ],
+      [
+        "HARDWARE_MALFUNCTION->UNRESOLVED_PREVIOUS",
+        2
+      ],
+      [
+        "POOR_COMMUNICATION->UNRESOLVED_PREVIOUS",
+        2
+      ],
+      [
+        "LOST_PARCEL->DELAYED_DELIVERY",
+        1
+      ],
+      [
+        "UNEXPECTED_RENEWAL->CANCELLATION_ISSUE",
+        1
+      ],
+      [
+        "REPLACEMENT_REQUEST->HARDWARE_MALFUNCTION",
+        1
+      ],
+      [
+        "FIRMWARE_UPDATE_FAILURE->HARDWARE_MALFUNCTION",
+        1
+      ],
+      [
+        "HARDWARE_MALFUNCTION->CLAIM_REJECTED",
+        1
+      ]
+    ]
+  }
+}

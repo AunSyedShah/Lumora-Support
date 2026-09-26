@@ -1,0 +1,41 @@
+@import "tailwindcss";
+
+/* Homey theme (see the SupportNova UI design canvas). Tailwind 4 turns these into classes:
+   bg-cream, text-ink, bg-forest, font-display, ... */
+@theme {
+  --font-display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --font-sans: Figtree, "Segoe UI", system-ui, sans-serif;
+
+  --color-cream: #fbf6ee;   /* page background */
+  --color-sand: #f4efe6;    /* soft panels, customer bubbles */
+  --color-sand-2: #efe9dd;
+  --color-line: #d8cfbf;    /* borders, inputs */
+  --color-line-soft: #e5ddcd;
+  --color-ink: #1f2a24;     /* text */
+  --color-muted: #4a5a51;   /* secondary text (4.5:1 on cream) */
+  --color-forest: #1d4a37;  /* primary */
+  --color-forest-2: #2f6650;
+  --color-mint: #e7efe9;    /* staff bubbles, selected */
+  --color-sage: #b9d0c2;
+  --color-sun: #f2c14e;     /* highlight */
+  --color-sun-ink: #3b2a00;
+  --color-sun-soft: #fff4d6;
+  --color-amber: #9a5b00;   /* warnings */
+  --color-rust: #8a3a12;    /* overdue */
+}
+
+@layer base {
+  html {
+    background: var(--color-cream);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+  }
+  body {
+    margin: 0;
+    min-height: 100vh;
+  }
+  :focus-visible {
+    outline: 2px solid var(--color-forest);
+    outline-offset: 2px;
+  }
+}

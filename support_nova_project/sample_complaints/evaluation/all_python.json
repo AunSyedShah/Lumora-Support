@@ -1,0 +1,176 @@
+{
+  "complaints": 499,
+  "accuracy_percent": {
+    "python": {
+      "category": 66.5,
+      "subcategory": 62.2,
+      "department": 70.4,
+      "urgency": 72.1,
+      "priority": 72.1,
+      "escalation": 86.4,
+      "all_fields": 60.4
+    }
+  },
+  "by_group": {
+    "ambiguous": {
+      "complaints": 12,
+      "python_all_fields_percent": null,
+      "python_priority_percent": null,
+      "python_escalation_percent": null
+    },
+    "calm_critical": {
+      "complaints": 12,
+      "python_all_fields_percent": 91.7,
+      "python_priority_percent": 91.7,
+      "python_escalation_percent": 91.7
+    },
+    "contradictory": {
+      "complaints": 12,
+      "python_all_fields_percent": 66.7,
+      "python_priority_percent": 66.7,
+      "python_escalation_percent": 91.7
+    },
+    "core": {
+      "complaints": 279,
+      "python_all_fields_percent": 60.9,
+      "python_priority_percent": 71.0,
+      "python_escalation_percent": 87.1
+    },
+    "difficult_policy": {
+      "complaints": 25,
+      "python_all_fields_percent": 64.0,
+      "python_priority_percent": 68.0,
+      "python_escalation_percent": 88.0
+    },
+    "escalation": {
+      "complaints": 40,
+      "python_all_fields_percent": 60.0,
+      "python_priority_percent": 87.5,
+      "python_escalation_percent": 90.0
+    },
+    "incomplete": {
+      "complaints": 15,
+      "python_all_fields_percent": 73.3,
+      "python_priority_percent": 73.3,
+      "python_escalation_percent": 100.0
+    },
+    "multi_issue": {
+      "complaints": 26,
+      "python_all_fields_percent": 65.4,
+      "python_priority_percent": 80.8,
+      "python_escalation_percent": 80.8
+    },
+    "near_duplicate": {
+      "complaints": 11,
+      "python_all_fields_percent": 45.5,
+      "python_priority_percent": 63.6,
+      "python_escalation_percent": 90.9
+    },
+    "policy_exception": {
+      "complaints": 12,
+      "python_all_fields_percent": 58.3,
+      "python_priority_percent": 66.7,
+      "python_escalation_percent": 100.0
+    },
+    "prompt_injection": {
+      "complaints": 24,
+      "python_all_fields_percent": 62.5,
+      "python_priority_percent": 70.8,
+      "python_escalation_percent": 79.2
+    },
+    "repeat": {
+      "complaints": 19,
+      "python_all_fields_percent": 47.4,
+      "python_priority_percent": 73.7,
+      "python_escalation_percent": 68.4
+    },
+    "unsupported_refund": {
+      "complaints": 12,
+      "python_all_fields_percent": 8.3,
+      "python_priority_percent": 33.3,
+      "python_escalation_percent": 66.7
+    }
+  },
+  "intake": {
+    "injection_cases": 24,
+    "injection_flagged_at_intake": 12,
+    "injection_detected_by_genai": 0,
+    "false_injection_flags": 4,
+    "repeat_or_duplicate_cases": 30,
+    "linked_to_the_right_complaint": 30,
+    "match_type_correct": 14,
+    "unrelated_complaints_wrongly_linked": 2,
+    "fact_mismatches": 2
+  },
+  "review": {},
+  "confusions": {
+    "python_priority": [
+      [
+        "P2->None",
+        31
+      ],
+      [
+        "P3->P2",
+        22
+      ],
+      [
+        "P3->None",
+        18
+      ],
+      [
+        "P1->None",
+        15
+      ],
+      [
+        "P0->None",
+        15
+      ],
+      [
+        "P2->P3",
+        9
+      ],
+      [
+        "P2->P1",
+        9
+      ],
+      [
+        "P1->P2",
+        3
+      ]
+    ],
+    "python_subcategory": [
+      [
+        "REFUND_DENIED->None",
+        18
+      ],
+      [
+        "REPLACEMENT_REQUEST->HARDWARE_MALFUNCTION",
+        11
+      ],
+      [
+        "APP_CONNECTIVITY->None",
+        7
+      ],
+      [
+        "ACCOUNT_LOCKED->None",
+        7
+      ],
+      [
+        "UNAUTHORIZED_ACCESS->None",
+        7
+      ],
+      [
+        "MISSED_APPOINTMENT->LOST_PARCEL",
+        6
+      ],
+      [
+        "FAULTY_INSTALLATION->None",
+        6
+      ],
+      [
+        "FOOTAGE_EXPOSURE->None",
+        6
+      ]
+    ]
+  }
+}

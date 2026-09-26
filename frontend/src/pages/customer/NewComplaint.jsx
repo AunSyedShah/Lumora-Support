@@ -1,0 +1,175 @@
+import { Form, Formik } from 'formik'
+import { useRef, useState } from 'react'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
+
+import { api, errorMessage } from '../../api/client'
+import { Button, Card, ErrorNotice, PillChoice, SectionTitle, SelectField, TextArea, TextField } from '../../components/ui'
+import { formatDate } from '../../lib/format'
+import { useApi } from '../../lib/useApi'
+
+const ALLOWED_FILES = ['.pdf', '.png', '.jpg', '.jpeg', '.txt']
+const MAX_FILES = 5
+const MAX_MB = 5
+
+// The same minimums the API applies, checked here so people see them before sending.
+function validate(v) {
+  const errors = {}
+  if (v.title.trim().length < 5) errors.title = 'Give your complaint a short title (at least 5 characters).'
+  const words = v.description.trim().split(/\s+/).filter(Boolean)
+  if (v.description.trim().length < 20 || words.length < 4) errors.description = 'Please describe what happened in a sentence or two.'
+  return errors
+}
+
+function checkFiles(files) {
+  if (files.length > MAX_FILES) return `You can attach up to ${MAX_FILES} files.`
+  for (const f of files) {
+    const ext = f.name.slice(f.name.lastIndexOf('.')).toLowerCase()
+    if (!ALLOWED_FILES.includes(ext)) return `${f.name}: only PDF, PNG, JPG and TXT files can be attached.`
+    if (f.size > MAX_MB * 1024 * 1024) return `${f.name} is larger than ${MAX_MB} MB.`
+  }
+  return ''
+}
+
+export default function NewComplaint() {
+  const navigate = useNavigate()
+  const location = useLocation()
+  const orders = useApi('/orders/my')
+  const products = useApi('/catalog/products', { params: { active_only: true } })
+  const earlier = useApi('/complaints/my')
+  const fileInput = useRef(null)
+  const [files, setFiles] = useState([])
+  const [fileError, setFileError] = useState('')
+  const [error, setError] = useState('')
+  const [duplicateOf, setDuplicateOf] = useState(null)
+
+  const orderOptions = [
+    { value: '', label: 'Not about an order' },
+    ...(orders.data || []).map((o) => ({ value: o.order_ref, label: `${o.order_ref} · ${o.product}${o.quantity > 1 ? ` × ${o.quantity}` : ''} · ${formatDate(o.order_date)}` })),
+  ]
+  const productOptions = [{ value: '', label: 'Not sure / not listed' }, ...(products.data || []).map((p) => ({ value: p.code, label: p.name }))]
+  const earlierOptions = [
+    { value: '', label: 'No, this is new' },
+    ...(earlier.data || []).map((c) => ({ value: c.complaint_id, label: `${c.complaint_id} · ${c.title}` })),
+  ]
+
+  function pickFiles(event) {
+    const picked = Array.from(event.target.files || [])
+    const problem = checkFiles(picked)
+    setFileError(problem)
+    setFiles(problem ? [] : picked)
+    if (problem && fileInput.current) fileInput.current.value = ''
+  }
+
+  async function submit(values) {
+    setError('')
+    setDuplicateOf(null)
+    try {
+      const { data } = await api.post('/complaints', {
+        title: values.title.trim(),
+        description: values.description.trim(),
+        order_ref: values.order_ref || null,
+        product: values.product || null,
+        previous_complaint_ref: values.previous_complaint_ref || null,
+        requested_resolution: values.requested_resolution.trim(),
+        preferred_contact: values.preferred_contact,
+        channel: 'web',
+      })
+      const notes = [...data.warnings]
+      for (const file of files) {
+        const form = new FormData()
+        form.append('file', file)
+        try {
+          await api.post(`/complaints/${data.complaint_id}/attachments`, form)
+        } catch (e) {
+          notes.push(`${file.name} could not be attached: ${errorMessage(e)}`)
+        }
+      }
+      navigate(`/my/complaints/${data.complaint_id}`, { state: { justSent: true, notes } })
+    } catch (e) {
+      if (e.response?.status === 409 && e.response.data?.existing_complaint) setDuplicateOf(e.response.data.existing_complaint)
+      setError(errorMessage(e))
+    }
+  }
+
+  return (
+    <div className="grid grid-cols-1 gap-7 lg:grid-cols-[minmax(0,1fr)_360px]">
+      <Card className="px-6 py-8 md:px-10">
+        <Formik
+          initialValues={{ title: '', description: '', order_ref: location.state?.order || '', product: '', requested_resolution: '', previous_complaint_ref: '', preferred_contact: 'email' }}
+          validate={validate}
+          onSubmit={submit}
+          enableReinitialize={false}
+        >
+          {({ isSubmitting }) => (
+            <Form className="flex flex-col gap-6" noValidate>
+              <h1 className="m-0 font-display text-[34px] font-bold tracking-tight">Tell us what happened</h1>
+              <ErrorNotice message={error} />
+              {duplicateOf && (
+                <p className="m-0">
+                  <Link to={`/my/complaints/${duplicateOf}`} className="font-semibold text-forest">
+                    Open {duplicateOf}
+                  </Link>
+                </p>
+              )}
+              <TextField name="title" label="In a few words, what’s wrong?" placeholder="e.g. Thermostat order hasn’t arrived" />
+              <TextArea name="description" label="Tell us more" rows={5} placeholder="What happened, when, and what you have already tried." />
+              <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+                <SelectField name="order_ref" label="Which order?" hint="(if it’s about one)" options={orderOptions} />
+                <SelectField name="product" label="Which product?" options={productOptions} />
+                <TextField name="requested_resolution" label="What would you like us to do?" placeholder="e.g. Tell me when it will arrive" />
+                <SelectField name="previous_complaint_ref" label="Already told us about this?" hint="(optional)" options={earlierOptions} />
+              </div>
+              <PillChoice
+                name="preferred_contact"
+                legend="How should we get back to you?"
+                options={[
+                  { value: 'email', label: 'Email' },
+                  { value: 'phone', label: 'Phone' },
+                  { value: 'chat', label: 'Chat' },
+                ]}
+              />
+              <div className="flex flex-col gap-2">
+                <label htmlFor="files" className="text-[15px] font-semibold">
+                  Photos or documents <span className="font-normal text-muted">(optional — PDF, PNG, JPG, up to {MAX_FILES} files)</span>
+                </label>
+                <div className="rounded-[14px] border-[1.5px] border-dashed border-line bg-cream/40 p-4">
+                  <input id="files" ref={fileInput} type="file" multiple accept={ALLOWED_FILES.join(',')} onChange={pickFiles} className="text-[15px]" />
+                </div>
+                {fileError && <p className="m-0 text-sm font-semibold text-rust">{fileError}</p>}
+              </div>
+              <div className="flex flex-wrap items-center gap-4">
+                <Button type="submit" disabled={isSubmitting} className="min-h-12 text-base">
+                  {isSubmitting ? 'Sending…' : 'Send complaint'}
+                </Button>
+                <span className="text-sm text-muted">
+                  {isSubmitting ? 'We’re reading it now — this takes a few seconds.' : 'Please don’t include card numbers or passwords.'}
+                </span>
+              </div>
+            </Form>
+          )}
+        </Formik>
+      </Card>
+
+      <aside aria-label="What happens next" className="flex flex-col gap-5">
+        <div className="flex flex-col gap-4 rounded-[26px] bg-sun p-7 text-[#2e2200]">
+          <SectionTitle>What happens next</SectionTitle>
+          <ol className="m-0 flex flex-col gap-3 pl-5 text-base leading-snug">
+            <li>We read your complaint straight away.</li>
+            <li>The right team picks it up — urgent safety or security problems go to the front of the line.</li>
+            <li>
+              You can follow every step and reply in{' '}
+              <Link to="/my/complaints" className="font-semibold text-[#2e2200]">
+                My complaints
+              </Link>
+              .
+            </li>
+          </ol>
+        </div>
+        <Card className="flex flex-col gap-2 p-6">
+          <h2 className="m-0 font-display text-lg font-bold">Is it smoking, sparking or very hot?</h2>
+          <p className="m-0 text-[15px] leading-relaxed text-muted">Unplug the device and keep away from it, then tell us here. Safety reports are handled first.</p>
+        </Card>
+      </aside>
+    </div>
+  )
+}

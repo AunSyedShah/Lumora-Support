@@ -1,0 +1,22 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+
+# Secrets
+.env
+
+# Local database
+db.sqlite3
+
+# Uploaded files
+support_nova_project/media/
+
+# Downloaded embedding model
+support_nova_project/models_cache/
