@@ -1,0 +1,68 @@
+# Backend dependencies for the Vercel deployment (the service root is support_nova_project/).
+# Generated from uv.lock:  uv export --frozen --no-hashes --no-dev --no-emit-project
+# Differences from pyproject.toml: faiss-cpu left out (vector_search falls back to numpy, same
+# results, ~67 MB smaller bundle) and the Postgres driver added (Vercel cannot use SQLite).
+psycopg[binary]>=3.2
+tzdata>=2024.1  # TIME_ZONE=Asia/Karachi must not depend on the server having zone files
+annotated-types==0.8.0
+anyio==4.15.1
+argon2-cffi==25.1.0
+argon2-cffi-bindings==26.1.0
+asgiref==3.12.1
+certifi==2026.7.22
+cffi==2.1.1
+charset-normalizer==3.5.1
+click==8.5.0
+colorama==0.4.6 ; sys_platform == 'win32'
+django==6.1.1
+django-ninja==1.7.1
+dnspython==2.8.0
+email-validator==2.3.0
+et-xmlfile==2.0.0
+fastembed==0.8.1
+filelock==4.0.3
+flatbuffers==25.12.19
+fsspec==2026.9.0
+h11==0.16.0
+hf-xet==1.6.0 ; platform_machine == 'AMD64' or platform_machine == 'aarch64' or platform_machine == 'amd64' or platform_machine == 'arm64' or platform_machine == 'x86_64'
+httpcore==1.0.9
+httpcore2==2.13.1 ; sys_platform != 'emscripten'
+httpx==0.28.1
+httpx2==2.13.1
+httpx2-jsfetch==1.0 ; sys_platform == 'emscripten'
+huggingface-hub==1.33.0
+idna==3.20
+jiter==0.17.0
+loguru==0.7.3
+lxml==6.1.3
+mmh3==5.3.0
+numpy==2.5.3
+onnxruntime==1.30.0
+openai==3.19.2
+openpyxl==3.1.5
+packaging==26.3
+pandas==3.0.6
+pillow==12.3.0
+protobuf==7.36.2
+py-rust-stemmers==0.1.8
+pycparser==3.0 ; implementation_name != 'PyPy'
+pydantic==2.13.5
+pydantic-core==2.46.5
+pyjwt==2.15.0
+pymupdf==1.28.2
+python-dateutil==2.9.0.post0
+python-docx==1.2.0
+python-dotenv==1.2.3
+pyyaml==6.0.3
+requests==2.34.2
+six==1.17.0
+sniffio==1.3.1
+sqlparse==0.6.0
+tokenizers==0.23.2
+tqdm==4.70.1
+truststore==0.10.4 ; sys_platform != 'emscripten'
+typing-extensions==4.16.0
+typing-inspection==0.4.4
+tzdata==2026.4 ; sys_platform == 'emscripten' or sys_platform == 'win32'
+urllib3==2.8.0
+win32-setctime==1.2.0 ; sys_platform == 'win32'

@@ -26,13 +26,30 @@ load_dotenv(BASE_DIR.parent / '.env')
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/6.1/howto/deployment/checklist/
 
+# Vercel sets VERCEL=1 in its builds and functions. Everything Vercel-specific below keys off it,
+# so local development behaves exactly as before.
+ON_VERCEL = bool(os.getenv('VERCEL'))
+# Where the app may write files. On Vercel only /tmp is writable, and it does not survive a cold
+# start: uploads and saved emails there are temporary (use object storage for lasting files).
+WRITABLE_DIR = Path('/tmp') if ON_VERCEL else BASE_DIR
+
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = os.getenv('DJANGO_SECRET_KEY', 'django-insecure-dev-only-change-me')
+SECRET_KEY = os.getenv('DJANGO_SECRET_KEY') or 'django-insecure-dev-only-change-me'
+if ON_VERCEL and SECRET_KEY.startswith('django-insecure'):
+    from django.core.exceptions import ImproperlyConfigured
+    raise ImproperlyConfigured('Set DJANGO_SECRET_KEY in the Vercel project environment variables.')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = os.getenv('DJANGO_DEBUG', 'false' if ON_VERCEL else 'true').lower() == 'true'
 
-ALLOWED_HOSTS = []
+# Comma-separated extra hosts, e.g. a custom domain. *.vercel.app is always allowed on Vercel.
+ALLOWED_HOSTS = [h.strip() for h in os.getenv('DJANGO_ALLOWED_HOSTS', '').split(',') if h.strip()]
+if ON_VERCEL:
+    ALLOWED_HOSTS += ['.vercel.app']
+CSRF_TRUSTED_ORIGINS = [f'https://{h.lstrip(".")}' for h in ALLOWED_HOSTS if h != '.vercel.app'] + (
+    ['https://*.vercel.app'] if ON_VERCEL else [])
+if ON_VERCEL:
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 
 
 # Application definition
@@ -98,6 +115,23 @@ DATABASES = {
         'NAME': BASE_DIR / 'db.sqlite3',
     }
 }
+# Hosted Postgres (e.g. Neon from the Vercel Marketplace, which sets DATABASE_URL). Vercel's disk is
+# read-only and temporary, so SQLite cannot be used there.
+if os.getenv('DATABASE_URL'):
+    from urllib.parse import parse_qsl, unquote, urlparse
+
+    _db = urlparse(os.environ['DATABASE_URL'])
+    DATABASES['default'] = {
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': _db.path.lstrip('/'),
+        'USER': unquote(_db.username or ''),
+        'PASSWORD': unquote(_db.password or ''),
+        'HOST': _db.hostname,
+        'PORT': _db.port or 5432,
+        'OPTIONS': {'sslmode': 'require', **dict(parse_qsl(_db.query))},
+        'CONN_MAX_AGE': 60,
+        'CONN_HEALTH_CHECKS': True,
+    }
 
 
 # Password hashing: Argon2 first (strong and ~100x faster to check than PBKDF2 at Django's 1.5M
@@ -146,11 +180,13 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/6.1/howto/static-files/
 
 STATIC_URL = 'static/'
+STATIC_ROOT = BASE_DIR / 'staticfiles'  # Vercel runs collectstatic and serves these from its CDN
 
 # Uploaded files (knowledge-base documents)
 MEDIA_URL = 'media/'
-MEDIA_ROOT = BASE_DIR / 'media'
-KB_MAX_UPLOAD_MB = int(os.getenv('KB_MAX_UPLOAD_MB', 10))
+MEDIA_ROOT = WRITABLE_DIR / 'media'
+# Vercel accepts request bodies up to 4.5 MB, so uploads are capped at 4 MB there.
+KB_MAX_UPLOAD_MB = int(os.getenv('KB_MAX_UPLOAD_MB', 4 if ON_VERCEL else 10))
 
 
 # Email
@@ -170,7 +206,7 @@ EMBEDDING_BACKEND = os.getenv('EMBEDDING_BACKEND', 'fastembed')
 if 'test' in sys.argv:
     EMBEDDING_BACKEND = 'hashing'  # tests must not download a model
 EMBEDDING_MODEL = os.getenv('EMBEDDING_MODEL', 'BAAI/bge-small-en-v1.5')
-EMBEDDING_CACHE_DIR = BASE_DIR / 'models_cache'
+EMBEDDING_CACHE_DIR = WRITABLE_DIR / 'models_cache'  # on Vercel: downloaded once per cold start
 # Cosine similarity thresholds for bge-small. First calibrated on 16 hand-written pairs, then
 # re-tuned on the dataset's dev split (41 same-customer pairs): resubmitted near-duplicates
 # 0.971-0.999, reworded follow-ups (repeats) 0.818-0.969, unrelated complaints 0.525-0.817.
@@ -183,7 +219,7 @@ REPEAT_CERTAIN_THRESHOLD = float(os.getenv('REPEAT_CERTAIN_THRESHOLD', 0.85))
 REPEAT_COMPLAINT_THRESHOLD = float(os.getenv('REPEAT_COMPLAINT_THRESHOLD', 0.75))
 # An identical complaint re-submitted within this many days while the first is still open is rejected.
 DUPLICATE_WINDOW_DAYS = int(os.getenv('DUPLICATE_WINDOW_DAYS', 7))
-COMPLAINT_MAX_ATTACHMENT_MB = int(os.getenv('COMPLAINT_MAX_ATTACHMENT_MB', 5))
+COMPLAINT_MAX_ATTACHMENT_MB = int(os.getenv('COMPLAINT_MAX_ATTACHMENT_MB', 4 if ON_VERCEL else 5))
 
 
 # JWT authentication
@@ -246,7 +282,7 @@ if SMTP_HOST:
     }}}
 else:
     MAILERS = {'default': {'BACKEND': 'django.core.mail.backends.filebased.EmailBackend',
-                           'OPTIONS': {'file_path': BASE_DIR / 'sent_emails'}}}
+                           'OPTIONS': {'file_path': WRITABLE_DIR / 'sent_emails'}}}
 DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'Lumora Support <support@lumora.example>')
 IMAP_HOST = os.getenv('IMAP_HOST', '')
 IMAP_PORT = int(os.getenv('IMAP_PORT', 993))
