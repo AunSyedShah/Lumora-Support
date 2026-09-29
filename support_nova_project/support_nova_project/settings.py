@@ -100,6 +100,16 @@ DATABASES = {
 }
 
 
+# Password hashing: Argon2 first (strong and ~100x faster to check than PBKDF2 at Django's 1.5M
+# iterations, which made every sign-in take seconds). Older PBKDF2 hashes still verify and are
+# upgraded to Argon2 automatically at the user's next sign-in.
+PASSWORD_HASHERS = [
+    'django.contrib.auth.hashers.Argon2PasswordHasher',
+    'django.contrib.auth.hashers.PBKDF2PasswordHasher',
+    'django.contrib.auth.hashers.PBKDF2SHA1PasswordHasher',
+]
+
+
 # Password validation
 # https://docs.djangoproject.com/en/6.1/ref/settings/#auth-password-validators
 
@@ -124,7 +134,8 @@ AUTH_PASSWORD_VALIDATORS = [
 
 LANGUAGE_CODE = 'en-us'
 
-TIME_ZONE = 'UTC'
+# Local time for dates shown in reports and for grouping complaints by day (the UI shows browser time).
+TIME_ZONE = os.getenv('TIME_ZONE', 'Asia/Karachi')
 
 USE_I18N = True
 
@@ -145,11 +156,6 @@ KB_MAX_UPLOAD_MB = int(os.getenv('KB_MAX_UPLOAD_MB', 10))
 # Email
 # https://docs.djangoproject.com/en/6.1/topics/email/#topic-email-configuration
 
-MAILERS = {
-    'default': {
-        'BACKEND': 'django.core.mail.backends.console.EmailBackend',
-    },
-}
 
 
 # Fast (insecure) hashing only while running tests, so the suite doesn't crawl.
@@ -223,3 +229,29 @@ PROHIBITED_ACTION_SIMILARITY = float(os.getenv('PROHIBITED_ACTION_SIMILARITY', 0
 
 # Fixed app-level id sent to DeepSeek (never a customer id: the context cache is isolated per user_id).
 GENAI_USER_ID = os.getenv('GENAI_USER_ID', 'supportnova-pipeline1')
+
+# Email to customers (SMTP) and reading their replies from the support inbox (IMAP, manage.py fetch_emails).
+# Without EMAIL_HOST nothing is sent: each email is saved as a file in sent_emails/ instead.
+SMTP_HOST = os.getenv('EMAIL_HOST', '')
+SMTP_USER = os.getenv('EMAIL_HOST_USER', '')
+SMTP_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '')
+if SMTP_HOST:
+    MAILERS = {'default': {'BACKEND': 'django.core.mail.backends.smtp.EmailBackend', 'OPTIONS': {
+        'host': SMTP_HOST,
+        'port': int(os.getenv('EMAIL_PORT', 587)),
+        'username': SMTP_USER,
+        'password': SMTP_PASSWORD,
+        'use_tls': os.getenv('EMAIL_USE_TLS', 'true').lower() == 'true',
+        'timeout': 20,
+    }}}
+else:
+    MAILERS = {'default': {'BACKEND': 'django.core.mail.backends.filebased.EmailBackend',
+                           'OPTIONS': {'file_path': BASE_DIR / 'sent_emails'}}}
+DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'Lumora Support <support@lumora.example>')
+IMAP_HOST = os.getenv('IMAP_HOST', '')
+IMAP_PORT = int(os.getenv('IMAP_PORT', 993))
+IMAP_USER = os.getenv('IMAP_USER', '') or SMTP_USER
+IMAP_PASSWORD = os.getenv('IMAP_PASSWORD', '') or SMTP_PASSWORD
+IMAP_FOLDER = os.getenv('IMAP_FOLDER', 'INBOX')
+# Where customers open their complaint (used for the link in emails)
+FRONTEND_URL = os.getenv('FRONTEND_URL', 'http://localhost:5173')

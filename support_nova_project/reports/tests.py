@@ -92,6 +92,28 @@ class AnalyticsTests(ReportTestBase):
         self.assertEqual(d["escalations"]["total"], 1)
         self.assertIn("genai_python_mismatches", d)
         self.assertIn("manual_review", d)
+        teams = {t["department"]: t for t in d["teams"]}
+        self.assertEqual((teams["LOGISTICS"]["complaints"], teams["LOGISTICS"]["open"]), (2, 0))  # 2 resolved deliveries
+        for row in d["sla_risks"]["most_urgent"]:
+            self.assertIn("title", row)
+
+    def test_sentiment_filter_and_distribution(self):
+        self.assertEqual(self.get("/api/analytics", sentiment="neutral").json()["total"], 1)  # case-insensitive
+        d = self.get("/api/dashboard/admin").json()
+        self.assertEqual({i["value"]: i["count"] for i in d["sentiment_distribution"]}, {"Negative": 3, "Neutral": 1})
+        self.assertEqual({i["value"] for i in d["priority_levels"]}, {"P0", "P2", "P3"})
+
+    def test_urgent_list_names_the_person(self):
+        self.make(assigned=self.agent, days_ago=5)
+        self.agent.first_name, self.agent.last_name = "Leo", "Martins"
+        self.agent.save()
+        rows = self.get("/api/dashboard/admin").json()["sla_risks"]["most_urgent"]
+        self.assertIn(("agent_log", "Leo Martins"), [(r["assigned_to"], r["assigned_to_name"]) for r in rows])
+
+    def test_admin_dashboard_is_valid_json_for_browsers(self):
+        self.make(assigned=None, days_ago=5)  # unassigned and late: pandas would turn "no one" into NaN
+        body = self.get("/api/dashboard/admin").content.decode()
+        self.assertNotIn("NaN", body)  # Python accepts NaN in JSON, browsers do not
 
     def test_agent_cannot_see_organisation_wide_data(self):
         for url in ("/api/dashboard/admin", "/api/analytics", "/api/analytics/trends", "/api/reports",
@@ -111,6 +133,18 @@ class AgentDashboardTests(ReportTestBase):
         item = d["complaints"][0]
         for key in ("genai_recommendation", "validation", "suggested_response", "escalation_warning", "sla"):
             self.assertIn(key, item)
+
+    def test_late_first_reply_counts_as_overdue_and_comes_first(self):
+        replied = self.make(assigned=self.agent, days_ago=0)
+        replied.first_response_at = NOW - timedelta(minutes=1)  # answered, only the resolution is left
+        replied.save()
+        unanswered = self.make(assigned=self.agent, days_ago=3)  # reply deadline long gone
+        d = self.get("/api/dashboard/agent", self.agent).json()
+        first = d["complaints"][0]
+        self.assertEqual(first["complaint_id"], unanswered.complaint_id)
+        self.assertEqual((first["next_deadline"]["kind"], first["next_deadline"]["state"]), ("reply", "breached"))
+        self.assertEqual(d["complaints"][1]["next_deadline"]["kind"], "resolve")
+        self.assertGreaterEqual(d["sla_breached"], 1)
 
 
 class TrendTests(ReportTestBase):
@@ -183,6 +217,15 @@ class ReportExportTests(ReportTestBase):
         pdf = self.get("/api/reports/complaint_analysis", format="pdf")
         text = pymupdf.open(stream=pdf.content, filetype="pdf")[0].get_text()
         self.assertIn("Columns not shown here", text)
+
+    def test_pdf_uses_readable_labels(self):
+        pdf = self.get("/api/reports/escalations", format="pdf")
+        text = " ".join(pymupdf.open(stream=pdf.content, filetype="pdf")[0].get_text().split())  # cells wrap lines
+        self.assertIn("Specialist team", text)  # summary {"specialist_team": 1} in words
+        self.assertIn("Product Safety", text)  # department code -> name
+        self.assertNotIn('{"', text)  # no raw JSON
+        csv = self.get("/api/reports/escalations", format="csv").content.decode("utf-8-sig")
+        self.assertIn("PRODUCT_SAFETY", csv)  # CSV keeps the codes for analysis
 
     def test_bad_requests(self):
         self.assertEqual(self.get("/api/reports/nope").status_code, 404)

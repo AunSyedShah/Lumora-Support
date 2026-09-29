@@ -9,11 +9,15 @@ so any report can be exported to CSV, Excel or PDF by the same code (export.py).
 from collections import Counter
 from dataclasses import dataclass, field
 
+from django.utils import timezone
+
+from complaint_dataset.csv_io import COMPLAINTS_FILE, read_rows
+from complaint_dataset.models import DatasetCase
 from complaints.models import Complaint
 from python_validation.comparison import comparison_row
 
 from .analytics import analytics
-from .dashboards import manual_review_summary, mismatch_summary, reason_type
+from .dashboards import department_rows, manual_review_summary, mismatch_summary, reason_type
 from .data import complaint_frame, latest_validations
 
 
@@ -55,24 +59,7 @@ def complaint_analysis(qs):
 # ---------------- 2. department performance ----------------
 
 def department_performance(qs):
-    df = complaint_frame(qs)
-    rows = []
-    for department, group in (df.groupby("department") if len(df) else []):
-        done = group[group["sla_resolution"].isin(["met", "missed"])]
-        rows.append({
-            "department": department,
-            "complaints": len(group),
-            "open": int(group["is_open"].sum()),
-            "resolved_or_closed": int((~group["is_open"]).sum()),
-            "escalated": int(group["escalated"].sum()),
-            "sla_met_percent": _pct(int((done["sla_resolution"] == "met").sum()), len(done)) if len(done) else None,
-            "sla_breached_open": int((group["is_open"] & (group["sla_resolution"] == "breached")).sum()),
-            "avg_resolution_hours": round(float(group["resolution_hours"].dropna().mean()), 1)
-            if group["resolution_hours"].notna().any() else None,
-            "avg_verification_score": round(float(group["verification_score"].dropna().mean()), 1)
-            if group["verification_score"].notna().any() else None,
-        })
-    rows.sort(key=lambda r: -r["complaints"])
+    rows = department_rows(complaint_frame(qs))
     columns = list(rows[0]) if rows else ["department", "complaints"]
     return Report("Department Performance", "Volume, SLA and resolution performance per department.", columns, rows,
                   {"departments": len(rows)})
@@ -84,7 +71,7 @@ def escalations(qs):
     escalated = qs.exclude(escalation_level__in=["", "none"]).select_related("department", "assigned_to", "category")
     rows = [{
         "complaint_id": c.complaint_id,
-        "created": c.created_at.strftime("%Y-%m-%d %H:%M"),
+        "created": timezone.localtime(c.created_at).strftime("%Y-%m-%d %H:%M"),
         "category": c.category.code if c.category else None,
         "escalation_level": c.escalation_level,
         "escalation_rules": ", ".join((c.resolution or {}).get("escalation_rules", [])),
@@ -161,15 +148,32 @@ def resolution_compliance(qs):
 
 # ---------------- 7. GenAI / Python comparison ----------------
 
+EXPECTED = ("category", "subcategory", "department", "priority", "escalation")
+
+
+def expected_labels(complaint_ids):
+    """The dataset answer key for these complaints ({} for complaints that are not dataset cases)."""
+    cases = dict(DatasetCase.objects.filter(complaint__complaint_id__in=complaint_ids)
+                 .values_list("case_id", "complaint__complaint_id"))
+    if not cases or not COMPLAINTS_FILE.exists():
+        return {}
+    return {cases[row["case_id"]]: {f: row.get(f"expected_{f}") or None for f in EXPECTED}
+            for row in read_rows(COMPLAINTS_FILE) if row["case_id"] in cases}
+
+
 def genai_python_comparison(qs):
     rows = sorted((comparison_row(r) for r in latest_validations(qs)), key=lambda r: r["complaint_id"])
-    for row in rows:
+    expected = expected_labels([r["complaint_id"] for r in rows])
+    for i, row in enumerate(rows):
         row["mismatched_fields"] = ", ".join(row["mismatched_fields"])
+        # Actual/expected labels right after the ID (SRS deliverable 8); blank for non-dataset complaints.
+        answer = expected.get(row["complaint_id"], {})
+        rows[i] = {"complaint_id": row.pop("complaint_id"), **{f"expected_{f}": answer.get(f) for f in EXPECTED}, **row}
     columns = list(rows[0]) if rows else ["complaint_id", "match"]
     return Report("GenAI vs Python Comparison", "Pipeline 1 (GenAI) against Pipeline 2 (Python rules), field by field.",
                   columns, rows, mismatch_summary(qs),
-                  pdf_columns=["complaint_id", "genai_category", "python_category", "genai_priority", "python_priority",
-                               "genai_escalation", "python_escalation", "match", "verification_status", "score",
+                  pdf_columns=["complaint_id", "expected_category", "genai_category", "python_category", "genai_priority",
+                               "python_priority", "genai_escalation", "python_escalation", "match", "verification_status",
                                "explanation"])
 
 
@@ -190,7 +194,7 @@ def manual_reviews(qs):
             "reasons": " | ".join(reasons),
             "score": c.verification_score,
             "reviewer": decision.actor.username if decision and decision.actor else None,
-            "decided_at": decision.created_at.strftime("%Y-%m-%d %H:%M") if decision else None,
+            "decided_at": timezone.localtime(decision.created_at).strftime("%Y-%m-%d %H:%M") if decision else None,
         })
     columns = ["complaint_id", "review_status", "reason_types", "reasons", "score", "reviewer", "decided_at"]
     return Report("Manual Reviews", "Complaints sent to human review, why, and the reviewer's decision.", columns, rows,

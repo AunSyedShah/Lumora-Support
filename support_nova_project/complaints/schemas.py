@@ -62,8 +62,9 @@ def _sender_name(note, complaint):
     author = note.author
     if author is None or not author.first_name:
         return "lumora", "Lumora team"
-    team = f" from {author.department.name}" if author.department_id else ""
-    return "lumora", f"{author.first_name}{team}"
+    # Staff without a team (reviewers, managers) still say where they are from.
+    team = author.department.name if author.department_id else "Lumora Support"
+    return "lumora", f"{author.first_name} from {team}"
 
 
 class ComplaintCustomerOut(Schema):
@@ -85,10 +86,28 @@ class ComplaintCustomerOut(Schema):
     attachments: list[AttachmentOut]
     created_at: datetime
     updated_at: datetime
+    reply_expected_by: datetime | None  # our next promise: the first reply, then the resolution
+    last_message_from: str | None  # "customer" | "lumora" | None: who wrote last in the conversation
+    safety_concern: bool  # classified as a safety problem: the customer sees "stay safe" advice straight away
+
+    @staticmethod
+    def resolve_safety_concern(obj):
+        return bool(obj.category_id and obj.category.code == "SAFETY")
 
     @staticmethod
     def resolve_resolution_status(obj):
         return RESOLUTION_STATUS.get(obj.status, obj.status)
+
+    @staticmethod
+    def resolve_reply_expected_by(obj):
+        if obj.status not in Complaint.OPEN_STATUSES or obj.status == Complaint.Status.AWAITING_CUSTOMER:
+            return None  # finished, or we are waiting for the customer
+        return obj.sla_response_due if obj.first_response_at is None else obj.sla_resolution_due
+
+    @staticmethod
+    def resolve_last_message_from(obj):
+        note = obj.notes.filter(customer_visible=True).order_by("-created_at", "-id").first()
+        return (_sender_name(note, obj)[0]) if note else None
 
     @staticmethod
     def resolve_latest_update(obj):
@@ -112,6 +131,7 @@ class ComplaintListOut(Schema):
     title: str
     status: str
     customer: str = Field(alias="customer.username")
+    customer_name: str = Field(alias="customer.display_name")
     customer_type: str
     product: str | None = Field(None, alias="product.name")
     order_ref: str | None = Field(None, alias="order.order_ref")
@@ -119,6 +139,7 @@ class ComplaintListOut(Schema):
     category: str | None = Field(None, alias="category.code")
     department: str | None = Field(None, alias="department.code")
     assigned_to: str | None = Field(None, alias="assigned_to.username")
+    assigned_to_name: str | None = Field(None, alias="assigned_to.display_name")
     priority: str
     sentiment: str
     escalation_level: str
@@ -137,6 +158,7 @@ class ComplaintStaffOut(ComplaintCustomerOut):
     """Full detail for staff, including pre-processing results."""
 
     customer: str = Field(alias="customer.username")
+    customer_name: str  # full name for people to read, the username if no name was given
     submitted_by: str | None = Field(None, alias="submitted_by.username")
     customer_type: str
     previous_complaint: str | None = Field(None, alias="previous_complaint.complaint_id")
@@ -154,6 +176,7 @@ class ComplaintStaffOut(ComplaintCustomerOut):
     department_code: str | None = Field(None, alias="department.code")
     supporting_departments: list[str]
     assigned_to: str | None = Field(None, alias="assigned_to.username")
+    assigned_to_name: str | None = Field(None, alias="assigned_to.display_name")
     priority: str
     urgency: str
     sentiment: str
@@ -167,6 +190,19 @@ class ComplaintStaffOut(ComplaintCustomerOut):
     sla_response_due: datetime | None
     sla_resolution_due: datetime | None
     follow_up_due: datetime | None
+
+    emotions: list[str] = []  # tone indicators from the latest analysis (Step 18) - context, never priority
+
+    @staticmethod
+    def resolve_customer_name(obj):
+        return obj.customer.display_name
+
+    @staticmethod
+    def resolve_emotions(obj):
+        analysis = obj.genai_analyses.exclude(output={}).filter(output__isnull=False).order_by("-created_at").first()
+        if analysis is None:
+            return []
+        return analysis.output.get("emotions") or []
 
 
 class SimilarComplaintOut(Schema):

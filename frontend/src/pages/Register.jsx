@@ -4,14 +4,13 @@ import { Link, Navigate, useNavigate } from 'react-router-dom'
 
 import { errorMessage } from '../api/client'
 import { homeFor, useAuth } from '../auth/context'
-import { Button, ErrorNotice, PillChoice, TextField } from '../components/ui'
+import { Button, ErrorNotice, TextField } from '../components/ui'
 import { AuthPanel } from './Login'
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 function validate(v) {
   const errors = {}
-  if (v.username.trim().length < 3) errors.username = 'Choose a username of at least 3 characters.'
   if (!EMAIL.test(v.email.trim())) errors.email = 'Enter a valid email address.'
   if (v.password.length < 8) errors.password = 'Use at least 8 characters.'
   if (v.confirm !== v.password) errors.confirm = 'The passwords don’t match.'
@@ -30,7 +29,7 @@ export default function Register() {
     try {
       const fields = { ...values }
       delete fields.confirm // only checked here, not sent
-      const me = await register({ ...fields, username: fields.username.trim(), email: fields.email.trim() })
+      const me = await register({ ...fields, email: fields.email.trim() })
       navigate(homeFor(me.role), { replace: true })
     } catch (e) {
       setError(errorMessage(e))
@@ -42,7 +41,7 @@ export default function Register() {
       <AuthPanel />
       <main className="flex items-center justify-center py-6">
         <Formik
-          initialValues={{ username: '', email: '', first_name: '', last_name: '', phone: '', customer_type: 'standard', password: '', confirm: '' }}
+          initialValues={{ email: '', first_name: '', last_name: '', phone: '', password: '', confirm: '' }}
           validate={validate}
           onSubmit={submit}
         >
@@ -54,22 +53,13 @@ export default function Register() {
                 <TextField name="first_name" label="First name" autoComplete="given-name" />
                 <TextField name="last_name" label="Last name" autoComplete="family-name" />
               </div>
-              <TextField name="email" label="Email" type="email" autoComplete="email" />
-              <TextField name="phone" label="Phone" hint="(optional)" type="tel" autoComplete="tel" />
-              <TextField name="username" label="Username" autoComplete="username" />
-              <PillChoice
-                name="customer_type"
-                legend="Account type"
-                options={[
-                  { value: 'standard', label: 'Home' },
-                  { value: 'premium', label: 'LumoraCare+ member' },
-                  { value: 'business', label: 'Business' },
-                ]}
-              />
+              <TextField name="email" label="Email" hint="(you’ll sign in with it)" type="email" autoComplete="email" />
+              <TextField name="phone" label="Phone" hint="(optional — if you’d like us to call you)" type="tel" autoComplete="tel" />
               <div className="grid grid-cols-2 gap-4">
                 <TextField name="password" label="Password" type="password" autoComplete="new-password" />
                 <TextField name="confirm" label="Repeat password" type="password" autoComplete="new-password" />
               </div>
+              <p className="-mt-2 m-0 text-sm text-muted">At least 8 characters, and not a common word.</p>
               <Button type="submit" disabled={isSubmitting} className="min-h-12 text-base">
                 {isSubmitting ? 'Creating your account…' : 'Create account'}
               </Button>

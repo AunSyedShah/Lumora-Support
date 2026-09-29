@@ -283,6 +283,26 @@ class WorkflowTests(WorkflowBase):
             ("customer", "You", "Thank you, I will wait."),
         ])  # the internal note is not shown
 
+    def test_customer_sees_when_to_expect_a_reply(self):
+        c = self.processed()
+        url = f"/api/complaints/my/{c.complaint_id}"
+        before = self.client.get(url, **self.headers(self.alice)).json()
+        self.assertEqual(before["reply_expected_by"][:16], c.sla_response_due.isoformat()[:16])  # first reply
+        self.assertIsNone(before["last_message_from"])
+        self.post(f"/complaints/{c.complaint_id}/send-response", {"text": "We have asked the courier."}, self.logistics_agent)
+        after = self.client.get(url, **self.headers(self.alice)).json()
+        c.refresh_from_db()
+        self.assertEqual(after["reply_expected_by"][:16], c.sla_resolution_due.isoformat()[:16])  # now the resolution
+        self.assertEqual(after["last_message_from"], "lumora")
+
+    def test_card_numbers_masked_in_replies_and_notes(self):
+        c = self.processed()
+        self.post(f"/my/complaints/{c.complaint_id}/reply", {"text": "My card is 4111 1111 1111 1111"}, self.alice)
+        self.post(f"/complaints/{c.complaint_id}/notes", {"text": "card 4111-1111-1111-1111 on file"}, self.logistics_agent)
+        texts = list(c.notes.values_list("text", flat=True))
+        self.assertTrue(texts and all("4111 1111" not in t and "4111-1111" not in t for t in texts))
+        self.assertIn("[CARD ENDING 1111]", texts[0])
+
     def test_reopen_window(self):
         c = self.processed()
         self.post(f"/complaints/{c.complaint_id}/status", {"status": "resolved"}, self.logistics_agent)
@@ -496,3 +516,98 @@ class AutoProcessTests(WorkflowBase):
             call_command("process_pending", stdout=__import__("io").StringIO())
         c = Complaint.objects.get(complaint_id=res.json()["complaint_id"])
         self.assertEqual((c.status, c.assigned_to), (S.ASSIGNED, self.logistics_agent))
+
+
+class EmailTests(WorkflowBase):
+    """Email to customers (outbox) and emails read back from the inbox (no real mail server)."""
+
+    def setUp(self):
+        self.alice.email = "alice@example.com"
+        self.alice.first_name = "Alice"
+        self.alice.save()
+
+    @staticmethod
+    def message(sender, subject, body):
+        from email.message import EmailMessage
+        from email.policy import default
+        msg = EmailMessage(policy=default)
+        msg["From"], msg["Subject"] = sender, subject
+        msg.set_content(body)
+        return msg
+
+    def test_reply_is_emailed_with_the_complaint_number(self):
+        from django.core import mail
+        c = self.processed()
+        with self.captureOnCommitCallbacks(execute=True):
+            self.post(f"/complaints/{c.complaint_id}/send-response", {"text": "We have asked the courier."}, self.logistics_agent)
+        self.assertEqual(len(mail.outbox), 1)
+        sent = mail.outbox[0]
+        self.assertEqual((sent.to, sent.subject), (["alice@example.com"], f"[{c.complaint_id}] {c.title}"))
+        self.assertIn("We have asked the courier.", sent.body)
+        self.assertIn("Hi Alice", sent.body)
+
+    def test_no_email_when_customer_prefers_phone(self):
+        from django.core import mail
+        c = self.processed()
+        Complaint.objects.filter(pk=c.pk).update(preferred_contact="phone")
+        with self.captureOnCommitCallbacks(execute=True):
+            self.post(f"/complaints/{c.complaint_id}/send-response", {"text": "We have asked the courier."}, self.logistics_agent)
+        self.assertEqual(len(mail.outbox), 0)
+
+    def test_emailed_reply_is_added_to_the_complaint(self):
+        from .emails import import_email
+        c = self.processed()
+        body = "Here is my tracking number 12345.\n\nOn Mon, 1 Sep 2026 Lumora Support wrote:\n> We have asked the courier."
+        outcome = import_email(self.message("Alice <ALICE@example.com>", f"Re: [{c.complaint_id}] {c.title}", body))
+        self.assertEqual(outcome, "reply")
+        self.assertEqual(c.notes.last().text, "Here is my tracking number 12345.")  # quoted part dropped
+        # another customer cannot add to Alice's complaint
+        self.bob.email = "bob@example.com"
+        self.bob.save()
+        self.assertEqual(import_email(self.message("bob@example.com", f"Re: [{c.complaint_id}]", "hello there")), "skipped")
+
+    def test_email_from_customer_becomes_a_complaint(self):
+        from .emails import import_email
+        outcome = import_email(self.message("alice@example.com", "Doorbell not charging",
+                                            "My video doorbell stopped charging two days ago and the light is off."))
+        self.assertEqual(outcome, "new")
+        complaint = Complaint.objects.get(title="Doorbell not charging")
+        self.assertEqual((complaint.customer, complaint.channel), (self.alice, "email"))
+        self.assertEqual(import_email(self.message("stranger@example.com", "Hi", "Please call me back soon.")), "skipped")
+
+    @override_settings(IMAP_HOST="imap.example.com")
+    def test_fetch_emails_command(self):
+        from io import StringIO
+        c = self.processed()
+        raw = self.message("alice@example.com", f"Re: [{c.complaint_id}]", "Still waiting for it.").as_bytes()
+
+        class FakeInbox:
+            stored = []
+
+            def __init__(self, host, port):
+                pass
+
+            def login(self, user, password):
+                pass
+
+            def select(self, folder):
+                pass
+
+            def search(self, charset, criteria):
+                return "OK", [b"1"]
+
+            def fetch(self, number, parts):
+                return "OK", [(b"1", raw)]
+
+            def store(self, number, command, flags):
+                FakeInbox.stored.append(number)
+
+            def logout(self):
+                pass
+
+        out = StringIO()
+        with patch("workflow.management.commands.fetch_emails.imaplib.IMAP4_SSL", FakeInbox):
+            call_command("fetch_emails", stdout=out)
+        self.assertIn("Replies: 1", out.getvalue())
+        self.assertEqual(FakeInbox.stored, [b"1"])  # marked as read only after it was imported
+        self.assertEqual(c.notes.last().text, "Still waiting for it.")

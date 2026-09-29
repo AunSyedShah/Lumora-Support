@@ -13,7 +13,7 @@ from django.core.management.base import BaseCommand
 
 from knowledge_base.models import PolicyDocument
 from knowledge_base.parsing import extract_header_metadata, parse_file
-from knowledge_base.services import ingest_document
+from knowledge_base.services import HEADER_NOTE, ingest_document
 from knowledge_base.validation import DocumentValidationError, file_sha256
 
 SAMPLE_DIR = settings.BASE_DIR / "sample_documents"
@@ -45,5 +45,5 @@ class Command(BaseCommand):
                 f"({document.status}, {document.chunks.count()} chunks)"
             )
             for w in warnings:
-                if not w.startswith("Read from document header"):
+                if not w.startswith(HEADER_NOTE):
                     self.stdout.write(f"         ! {w}")

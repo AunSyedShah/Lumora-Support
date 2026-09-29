@@ -21,6 +21,7 @@ from rules.engine import evaluate
 from rules.models import ESCALATION_RANK, EscalationLevel
 
 from .audit import log_event, snapshot
+from .emails import notify_customer
 from .lifecycle import TransitionError, apply_status, can_move, set_sla_due_dates
 from .models import AuditLog, ComplaintNote
 
@@ -375,6 +376,8 @@ def add_note(complaint, actor, text, customer_visible=False):
         complaint.first_response_at = note.created_at
         complaint.save(update_fields=["first_response_at", "updated_at"])
     log_event(complaint, actor, A.COMMENTED, {}, ("[to customer] " if customer_visible else "[internal] ") + text)
+    if customer_visible:
+        notify_customer(complaint, "There's an update on your complaint:", note.text)
     return note
 
 
@@ -390,6 +393,9 @@ def change_status(complaint, actor, target, comment=""):
     _set_status(complaint, target)
     complaint.save()
     log_event(complaint, actor, A.STATUS_CHANGED, before, comment)
+    if target == S.RESOLVED:
+        notify_customer(complaint, f"We've marked your complaint as resolved. If the problem isn't fixed, just reply "
+                                   f"within {REOPEN_WINDOW_DAYS} days and we'll reopen it.")
     return complaint
 
 
@@ -417,9 +423,10 @@ def send_response(complaint, actor, text=None, override_reason=None):
     if complaint.status in (S.ANALYZED, S.ASSIGNED, S.REOPENED):
         _move(complaint, S.IN_PROGRESS)
     complaint.save()
-    ComplaintNote.objects.create(complaint=complaint, author=actor, text=text, customer_visible=True)
+    note = ComplaintNote.objects.create(complaint=complaint, author=actor, text=text, customer_visible=True)
     comment = f"OVERRIDE of validation findings: {override_reason}" if findings else ""
     log_event(complaint, actor, A.RESPONSE_SENT, before, comment)
+    notify_customer(complaint, "We've replied to your complaint:", note.text)
     return complaint
 
 

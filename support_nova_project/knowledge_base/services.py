@@ -19,6 +19,10 @@ from .validation import (
     validate_metadata,
 )
 
+# Plain words for the note shown to the admin after an upload.
+HEADER_NOTE = "Taken from the document itself:"
+FIELD_NAMES = {"doc_id": "document ID", "doc_type": "kind", "effective_date": "start date", "expiry_date": "end date"}
+
 
 def ingest_document(filename: str, data: bytes, form_meta: dict, user):
     """
@@ -47,7 +51,8 @@ def ingest_document(filename: str, data: bytes, form_meta: dict, user):
     form_values = {k: v for k, v in form_meta.items() if v not in (None, "")}
     taken_from_header = sorted(set(header_meta) - set(form_values))
     if taken_from_header:
-        warnings.append(f"Read from document header: {', '.join(taken_from_header)}.")
+        names = [FIELD_NAMES.get(field, field.replace("_", " ")) for field in taken_from_header]
+        warnings.append(f"{HEADER_NOTE} {', '.join(names)}.")
     meta = validate_metadata({**header_meta, **form_values})
 
     category = None

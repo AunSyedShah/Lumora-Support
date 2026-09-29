@@ -80,6 +80,7 @@ class AuditOut(Schema):
     id: int
     action: str
     actor: str | None = Field(None, alias="actor.username")
+    actor_name: str | None = Field(None, alias="actor.display_name")
     before: dict
     after: dict
     comment: str
@@ -89,6 +90,7 @@ class AuditOut(Schema):
 class NoteOut(Schema):
     id: int
     author: str | None = Field(None, alias="author.username")
+    author_name: str | None = Field(None, alias="author.display_name")
     text: str
     customer_visible: bool
     created_at: datetime
@@ -101,10 +103,12 @@ class WorkItemOut(Schema):
     title: str
     status: str
     customer: str = Field(alias="customer.username")
+    customer_name: str = Field(alias="customer.display_name")
     category: str | None = Field(None, alias="category.code")
     subcategory: str | None = Field(None, alias="subcategory.code")
     department: str | None = Field(None, alias="department.code")
     assigned_to: str | None = Field(None, alias="assigned_to.username")
+    assigned_to_name: str | None = Field(None, alias="assigned_to.display_name")
     priority: str
     urgency: str
     sentiment: str

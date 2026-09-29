@@ -8,6 +8,7 @@ Staff see everything, can submit on a customer's behalf, and get the internal an
 from datetime import date
 
 from django.db.models import Q
+from django.http import FileResponse
 from django.shortcuts import get_object_or_404
 from ninja import File, Router, UploadedFile
 from ninja.errors import HttpError
@@ -34,6 +35,7 @@ from .schemas import (
     SimilarComplaintOut,
     SubmitOut,
 )
+from workflow.emails import acknowledge
 from workflow.services import auto_process
 
 from .services import ComplaintValidationError, add_attachment, submit_complaint
@@ -73,6 +75,7 @@ def submit(request, data: ComplaintIn):
     # Analyse, validate and route straight away (a failure here never undoes the submission).
     auto_process(complaint)
     complaint.refresh_from_db()
+    acknowledge(complaint)
     return 201, {
         "complaint_id": complaint.complaint_id,
         "status": complaint.status,
@@ -115,6 +118,7 @@ def list_complaints(
     verification: str | None = None,
     assigned_to: str | None = None,
     flagged_only: bool = False,
+    open_only: bool = False,
     date_from: date | None = None,
     date_to: date | None = None,
     q: str | None = None,
@@ -146,6 +150,8 @@ def list_complaints(
         qs = qs.filter(assigned_to__username=assigned_to)
     if flagged_only:
         qs = qs.exclude(security_flags=[])
+    if open_only:
+        qs = qs.filter(status__in=Complaint.OPEN_STATUSES)
     if date_from:
         qs = qs.filter(created_at__date__gte=date_from)
     if date_to:
@@ -203,16 +209,31 @@ def rule_preview(request, complaint_id: str):
 # ---------------- attachments ----------------
 
 
-@router.post("/{complaint_id}/attachments", response={201: AttachmentOut, 400: ErrorOut, 409: ErrorOut})
-def upload_attachment(request, complaint_id: str, file: File[UploadedFile]):
+def _own_or_visible(request, complaint_id):
+    """The complaint's customer, or staff allowed to see it (404 otherwise, so nothing is revealed)."""
     complaint = get_object_or_404(Complaint, complaint_id=complaint_id.upper())
     is_owner = complaint.customer_id == request.auth.id
     if not is_owner and not visible_complaints(request.auth).filter(pk=complaint.pk).exists():
-        raise HttpError(404, "Not Found")  # don't reveal complaints outside the user's scope
+        raise HttpError(404, "Not Found")
+    return complaint
+
+
+@router.post("/{complaint_id}/attachments", response={201: AttachmentOut, 400: ErrorOut, 409: ErrorOut})
+def upload_attachment(request, complaint_id: str, file: File[UploadedFile]):
+    complaint = _own_or_visible(request, complaint_id)
     try:
         return 201, add_attachment(complaint, file.name, file.read())
     except ComplaintValidationError as e:
         raise HttpError(e.status_code, str(e))
+
+
+@router.get("/{complaint_id}/attachments/{int:attachment_id}", response={200: None, 404: ErrorOut})
+def download_attachment(request, complaint_id: str, attachment_id: int):
+    """The file itself, for the customer who sent it and the staff handling the complaint."""
+    complaint = _own_or_visible(request, complaint_id)
+    attachment = get_object_or_404(complaint.attachments, pk=attachment_id)
+    return FileResponse(attachment.file.open("rb"), content_type=attachment.content_type,
+                        filename=attachment.original_filename)
 
 
 # ---------------- orders (simulated) ----------------

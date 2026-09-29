@@ -2,7 +2,7 @@ import { NavLink, Outlet } from 'react-router-dom'
 
 import { useAuth } from '../auth/context'
 import Logo from '../components/Logo'
-import { ChartIcon, ClockIcon, ListIcon, QueueIcon, ReportIcon, SearchIcon, SettingsIcon, SignOutIcon } from '../components/icons'
+import { ChartIcon, ClockIcon, ListIcon, PlusIcon, QueueIcon, ReportIcon, SearchIcon, SettingsIcon, SignOutIcon } from '../components/icons'
 import { initials } from '../lib/format'
 import { ROLE } from '../lib/labels'
 
@@ -13,12 +13,13 @@ const ITEMS = [
   { to: '/work/follow-ups', label: 'Follow-ups', icon: ClockIcon, roles: ['agent'] },
   { to: '/review', label: 'Second look', icon: SearchIcon, roles: ['reviewer', 'manager', 'admin'] },
   { to: '/complaints', label: 'Complaints', icon: ListIcon, roles: ['reviewer', 'manager', 'admin'] },
+  { to: '/complaints/new', label: 'New complaint', icon: PlusIcon, roles: ['agent', 'reviewer', 'manager', 'admin'] },
   { to: '/reports', label: 'Reports', icon: ReportIcon, roles: ['reviewer', 'manager', 'admin'] },
   { to: '/settings', label: 'Settings', icon: SettingsIcon, roles: ['admin'] },
 ]
 
 const itemClass = ({ isActive }) =>
-  `flex w-[68px] flex-col items-center gap-1 rounded-[14px] px-1 py-2.5 text-[11px] font-medium no-underline ${isActive ? 'bg-forest-2 text-cream' : 'text-sage hover:bg-forest-2/60 hover:text-cream'}`
+  `flex w-[68px] flex-col items-center gap-1 rounded-[14px] px-1 py-2.5 text-center text-xs leading-tight font-medium no-underline ${isActive ? 'bg-forest-2 text-cream' : 'text-sage hover:bg-forest-2/60 hover:text-cream'}`
 
 export default function StaffLayout() {
   const { user, logout } = useAuth()

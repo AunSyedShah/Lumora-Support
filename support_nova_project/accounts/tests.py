@@ -24,6 +24,29 @@ class AuthApiTests(TestCase):
         self.assertEqual(res.status_code, 201)
         self.assertEqual(res.json()["role"], "customer")  # "role" in the body is ignored
 
+    def test_register_is_always_standard_and_username_is_optional(self):
+        res = self.client.post(
+            "/api/auth/register",
+            {"email": "Sara.Malik@example.com", "password": "Str0ng!Pass", "customer_type": "premium"},
+            content_type="application/json",
+        )
+        self.assertEqual(res.status_code, 201)
+        self.assertEqual((res.json()["username"], res.json()["customer_type"]), ("sara.malik", "standard"))
+        again = self.client.post(
+            "/api/auth/register", {"email": "sara.malik@EXAMPLE.com", "password": "Str0ng!Pass"},
+            content_type="application/json",
+        )
+        self.assertEqual(again.status_code, 409)  # one account per email address
+
+    def test_login_with_email(self):
+        self.customer.email = "cust1@example.com"
+        self.customer.save()
+        res = self.client.post(
+            "/api/auth/login", {"username": "CUST1@example.com", "password": "Str0ng!Pass"}, content_type="application/json"
+        )
+        self.assertEqual(res.status_code, 200)
+        self.assertIn("access", res.json())
+
     def test_register_rejects_weak_password(self):
         res = self.client.post(
             "/api/auth/register",

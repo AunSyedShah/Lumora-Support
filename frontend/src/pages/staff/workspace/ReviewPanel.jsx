@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 
 import { api, errorMessage } from '../../../api/client'
 import { Button, ErrorNotice, Loading, SectionTitle, Select } from '../../../components/ui'
@@ -12,10 +13,10 @@ import { useApi } from '../../../lib/useApi'
  */
 function comparisonRows(suggested, validation, names) {
   const final = validation.final_resolution || {}
-  const independent = validation.independent_expected || {}
   const rows = [
-    ['Problem', names.subcategoryName(suggested.primary_issue?.subcategory), names.subcategoryName(independent.subcategory || final.subcategory)],
+    ['Problem', names.subcategoryName(suggested.primary_issue?.subcategory), names.subcategoryName(final.subcategory)],
     ['Team', names.departmentName(suggested.department), names.departmentName(final.department)],
+    ['Urgency', suggested.urgency, final.urgency],
     ['Priority', PRIORITY[suggested.priority], PRIORITY[final.priority]],
     ['Escalate to', ESCALATION[suggested.escalation_level], ESCALATION[final.escalation_level]],
     ['Offer', COMPENSATION[suggested.compensation?.type], COMPENSATION[final.compensation?.type]],
@@ -35,14 +36,26 @@ export default function ReviewPanel({ complaint, work, onDone }) {
   const [subcategory, setSubcategory] = useState(complaint.subcategory || '')
 
   const id = complaint.complaint_id
-  async function run(steps) {
+  const navigate = useNavigate()
+
+  /** After a decision, go straight to the next complaint that needs a second look. */
+  async function goToNext() {
+    const { data } = await api.get('/workflow/review-queue')
+    const next = data.find((item) => item.complaint_id !== id)
+    if (next) navigate(`/complaints/${next.complaint_id}`, { state: { reviewed: id, left: data.filter((i) => i.complaint_id !== id).length } })
+    else navigate('/review', { state: { reviewed: id } })
+  }
+
+  // `decided`: the complaint leaves the review queue, so move on to the next one.
+  async function run(steps, decided = false) {
     setBusy(true)
     setError('')
     try {
       for (const [url, body] of steps) await api.post(`/workflow/complaints/${id}/${url}`, body)
       setMode(null)
       setNote('')
-      onDone()
+      if (decided) await goToNext()
+      else onDone()
     } catch (e) {
       setError(errorMessage(e))
     } finally {
@@ -54,6 +67,10 @@ export default function ReviewPanel({ complaint, work, onDone }) {
   const suggested = analysis.data?.output
   const rows = suggested && validation.data ? comparisonRows(suggested, validation.data, names) : []
   const rejected = work.review_status === 'rejected'
+  // Our rules' own reading of the words, when it names another problem than the one that would be kept.
+  const final = validation.data?.final_resolution || {}
+  const otherReading = validation.data?.independent_expected?.subcategory
+  const hint = otherReading && final.subcategory && otherReading !== final.subcategory ? otherReading : null
 
   return (
     <section aria-label="Second look" className="flex flex-col gap-5 rounded-[26px] border-2 border-sun bg-white p-7">
@@ -69,7 +86,15 @@ export default function ReviewPanel({ complaint, work, onDone }) {
       {(validation.loading || analysis.loading) && !rows.length && <Loading label="Loading the comparison…" />}
       {rows.length > 0 && (
         <table className="w-full border-collapse text-[15px]">
-          <caption className="pb-2 text-left font-semibold">Suggested plan vs. our policies</caption>
+          <caption className="pb-2 text-left font-semibold">
+            Suggested plan vs. our policies
+            {complaint.verification_score != null && (
+              <span className="ml-2 font-normal text-muted">
+                · score <strong className="text-ink">{complaint.verification_score}</strong>/100
+                {rows.some((r) => r.differs) ? ', differences highlighted' : complaint.verification_score >= 90 ? ', they agree' : ' — same plan; the reasons above explain the lower score'}
+              </span>
+            )}
+          </caption>
           <thead>
             <tr className="text-left text-[13px] text-muted">
               <th scope="col" className="border-b border-line-soft py-2 pr-3 font-semibold" />
@@ -91,6 +116,11 @@ export default function ReviewPanel({ complaint, work, onDone }) {
           </tbody>
         </table>
       )}
+      {hint && (
+        <p className="m-0 rounded-2xl bg-sand px-4 py-3 text-[15px]">
+          From the words alone, our rules would call this <strong>{names.subcategoryName(hint)}</strong>. If that fits better, use <em>Change problem type</em> before approving.
+        </p>
+      )}
       {!suggested && !analysis.loading && <p className="m-0 text-[15px] text-muted">There is no automatic suggestion for this complaint — decide from the complaint and our policies.</p>}
 
       <label className="flex flex-col gap-1.5 text-[15px] font-semibold">
@@ -108,7 +138,7 @@ export default function ReviewPanel({ complaint, work, onDone }) {
             Reply to the customer
             <textarea rows={5} value={edit.response_text} onChange={(e) => setEdit({ ...edit, response_text: e.target.value })} className="rounded-xl border-[1.5px] border-line bg-white px-3 py-2 text-[15px] text-ink" />
           </label>
-          <Button className="self-start" disabled={busy} onClick={() => run([['modify', { ...edit, comment: note }], ['approve', { comment: note }]])}>
+          <Button className="self-start" disabled={busy} onClick={() => run([['modify', { ...edit, comment: note }], ['approve', { comment: note }]], true)}>
             Save changes and approve
           </Button>
         </div>
@@ -133,13 +163,16 @@ export default function ReviewPanel({ complaint, work, onDone }) {
 
       <ErrorNotice message={error} />
       <div className="flex flex-wrap items-center gap-2.5">
-        <Button disabled={busy} onClick={() => run([['approve', { comment: note }]])}>
+        <Button disabled={busy} onClick={() => run([['approve', { comment: note }]], true)}>
           Go with our policies
         </Button>
         <Button variant="outline" disabled={busy} onClick={() => setMode(mode === 'edit' ? null : 'edit')} aria-expanded={mode === 'edit'}>
           Edit before approving
         </Button>
-        <Button variant="light" disabled={busy} onClick={() => setMode(mode === 'reclassify' ? null : 'reclassify')} aria-expanded={mode === 'reclassify'}>
+        <Button variant="light" disabled={busy} onClick={() => {
+            if (hint && mode !== 'reclassify') setSubcategory(hint)
+            setMode(mode === 'reclassify' ? null : 'reclassify')
+          }} aria-expanded={mode === 'reclassify'}>
           Change problem type
         </Button>
         <Button variant="ghost" disabled={busy} onClick={() => run([['regenerate', { tone: null }]])}>

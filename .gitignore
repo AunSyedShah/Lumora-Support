@@ -20,3 +20,6 @@ support_nova_project/media/
 
 # Downloaded embedding model
 support_nova_project/models_cache/
+
+# Emails saved locally when no mail server is set
+support_nova_project/sent_emails/

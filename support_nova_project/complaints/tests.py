@@ -11,7 +11,7 @@ from django.test import TestCase, override_settings
 
 from accounts.auth import ACCESS, create_token
 from accounts.models import User
-from catalog.models import Product
+from catalog.models import Category, Product
 from vector_search.embeddings import embed_texts
 from vector_search.index import VectorIndex
 
@@ -255,6 +255,20 @@ class ComplaintApiTests(TestCase):
         detail = self.client.get(f"/api/complaints/{res.json()['complaint_id']}", **self.headers(self.reviewer)).json()
         self.assertEqual((detail["customer"], detail["submitted_by"]), ("alice", "agent1"))
 
+    def test_people_are_shown_by_name_and_safety_cases_get_advice(self):
+        self.alice.first_name, self.alice.last_name = "Alice", "Khan"
+        self.alice.save()
+        cid = self.submit().json()["complaint_id"]
+        self.assertFalse(self.client.get(f"/api/complaints/my/{cid}", **self.headers(self.alice)).json()["safety_concern"])
+        Complaint.objects.filter(complaint_id=cid).update(category=Category.objects.get(code="SAFETY"), assigned_to=self.agent)
+        self.assertTrue(self.client.get(f"/api/complaints/my/{cid}", **self.headers(self.alice)).json()["safety_concern"])
+        detail = self.client.get(f"/api/complaints/{cid}", **self.headers(self.reviewer)).json()
+        self.assertEqual((detail["customer"], detail["customer_name"]), ("alice", "Alice Khan"))
+        self.assertEqual((detail["assigned_to"], detail["assigned_to_name"]), ("agent1", "agent1"))  # no name given
+        self.assertEqual(detail["emotions"], [])  # not analysed yet
+        row = self.client.get("/api/complaints", {"q": cid}, **self.headers(self.reviewer)).json()["items"][0]
+        self.assertEqual(row["customer_name"], "Alice Khan")
+
     def test_customers_cannot_see_others_or_staff_views(self):
         cid = self.submit().json()["complaint_id"]
         self.assertEqual(self.client.get(f"/api/complaints/my/{cid}", **self.headers(self.bob)).status_code, 404)
@@ -266,6 +280,9 @@ class ComplaintApiTests(TestCase):
         self.submit(user=self.bob, title="Charged twice", description="I was charged twice for the plug order, fix it.")
         res = self.client.get("/api/complaints", {"customer": "bob"}, **self.headers(self.reviewer)).json()
         self.assertEqual(res["count"], 1)
+        Complaint.objects.filter(customer=self.bob).update(status="resolved")
+        res = self.client.get("/api/complaints", {"open_only": True}, **self.headers(self.reviewer)).json()
+        self.assertEqual(res["count"], 1)  # only Alice's is still open
 
     # ---- attachments ----
 
@@ -280,6 +297,36 @@ class ComplaintApiTests(TestCase):
         self.assertEqual(self.client.post(url, {"file": fake}, **self.headers(self.alice)).status_code, 400)
         other = SimpleUploadedFile("photo.png", b"\x89PNG" + b"0" * 10)
         self.assertEqual(self.client.post(url, {"file": other}, **self.headers(self.bob)).status_code, 404)
+
+    def test_customer_gets_an_acknowledgement_email(self):
+        from django.core import mail
+        self.alice.email = "alice@example.com"
+        self.alice.save()
+        with self.captureOnCommitCallbacks(execute=True):
+            cid = self.submit().json()["complaint_id"]
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertIn(cid, mail.outbox[0].subject)
+        self.assertIn(f"reference {cid}", mail.outbox[0].body)
+
+    def test_staff_detail_has_customer_name(self):
+        cid = self.submit().json()["complaint_id"]
+        url = f"/api/complaints/{cid}"
+        self.assertEqual(self.client.get(url, **self.headers(self.reviewer)).json()["customer_name"], "alice")  # no name set
+        self.alice.first_name, self.alice.last_name = "Alice", "Khan"
+        self.alice.save()
+        self.assertEqual(self.client.get(url, **self.headers(self.reviewer)).json()["customer_name"], "Alice Khan")
+
+    def test_attachment_download(self):
+        cid = self.submit().json()["complaint_id"]
+        data = b"\x89PNG\r\n\x1a\n" + b"0" * 100
+        upload = SimpleUploadedFile("photo.png", data)
+        aid = self.client.post(f"/api/complaints/{cid}/attachments", {"file": upload}, **self.headers(self.alice)).json()["id"]
+        url = f"/api/complaints/{cid}/attachments/{aid}"
+        for user in (self.alice, self.reviewer):  # the customer and staff with access
+            response = self.client.get(url, **self.headers(user))
+            self.assertEqual((response.status_code, b"".join(response.streaming_content)), (200, data))
+            self.assertIn('filename="photo.png"', response["Content-Disposition"])
+        self.assertEqual(self.client.get(url, **self.headers(self.bob)).status_code, 404)  # another customer
 
     # ---- analysis helpers ----
 

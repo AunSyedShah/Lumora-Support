@@ -1,5 +1,6 @@
 /* Small building blocks in the Homey style. Pages combine these with Tailwind classes. */
-import { useField } from 'formik'
+import { useField, useFormikContext } from 'formik'
+import { useEffect, useRef } from 'react'
 import { Link } from 'react-router-dom'
 
 const BUTTON = {
@@ -77,9 +78,14 @@ export function Loading({ label = 'Loading…' }) {
 }
 
 export function ErrorNotice({ message, onRetry }) {
+  const box = useRef(null)
+  // Errors often appear above a long form: bring them into view so they are not missed.
+  useEffect(() => {
+    if (message) box.current?.scrollIntoView({ block: 'center' })
+  }, [message])
   if (!message) return null
   return (
-    <div role="alert" className="flex flex-wrap items-center gap-3 rounded-2xl bg-sun-soft px-5 py-4 text-sun-ink">
+    <div ref={box} role="alert" className="flex flex-wrap items-center gap-3 rounded-2xl bg-sun-soft px-5 py-4 text-sun-ink">
       <span className="flex-1">{message}</span>
       {onRetry && (
         <Button variant="light" onClick={onRetry}>
@@ -109,6 +115,24 @@ export function EmptyState({ title, children }) {
 }
 
 /* ---------- form fields (Formik) ---------- */
+
+/** After a send with mistakes, move to the first field that needs fixing. Put it inside <Form>. */
+export function FocusFirstError() {
+  const { submitCount, isSubmitting, errors } = useFormikContext()
+  const handled = useRef(0)
+  useEffect(() => {
+    // wait until Formik has finished checking the fields for this attempt
+    if (isSubmitting || submitCount === handled.current) return
+    handled.current = submitCount
+    const first = Object.keys(errors)[0]
+    const field = first && document.querySelector(`[name="${first}"]`)
+    if (field) {
+      field.scrollIntoView({ block: 'center', behavior: 'smooth' }) // keep its label in view too
+      field.focus({ preventScroll: true })
+    }
+  }, [submitCount, isSubmitting, errors])
+  return null
+}
 
 const INPUT = 'w-full rounded-[14px] border-[1.5px] border-line bg-white px-4 py-3 text-base text-ink placeholder:text-muted/70 focus:border-forest focus:outline-none'
 
@@ -192,9 +216,9 @@ export function PillChoice({ name, legend, options }) {
 /** Plain controlled inputs for filters and small forms that don't need Formik. */
 export function Select({ label, value, onChange, options, className = '' }) {
   return (
-    <label className={`flex flex-col gap-1 text-[13px] text-muted ${className}`}>
+    <label className={`flex min-w-0 flex-col gap-1 text-[13px] text-muted ${className}`}>
       {label}
-      <select value={value} onChange={(e) => onChange(e.target.value)} className="rounded-xl border-[1.5px] border-line bg-white px-3 py-2 text-[15px] text-ink focus:border-forest focus:outline-none">
+      <select value={value} onChange={(e) => onChange(e.target.value)} className="max-w-full rounded-xl border-[1.5px] border-line bg-white px-3 py-2 text-[15px] text-ink focus:border-forest focus:outline-none">
         {options.map((o) => (
           <option key={o.value} value={o.value}>
             {o.label}

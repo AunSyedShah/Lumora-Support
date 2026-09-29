@@ -4,6 +4,7 @@ import { api, errorMessage } from '../../api/client'
 import { Badge, Button, Card, EmptyState, ErrorNotice, Loading, SectionTitle, Select, SuccessNotice } from '../../components/ui'
 import { formatDate } from '../../lib/format'
 import { CUSTOMER_TYPE, ROLE } from '../../lib/labels'
+import { useTaxonomy } from '../../lib/taxonomy'
 import { useApi } from '../../lib/useApi'
 import { fieldLabel, input } from './style'
 
@@ -79,6 +80,7 @@ export default function People() {
   const [role, setRole] = useState('staff')
   const [search, setSearch] = useState('')
   const [message, setMessage] = useState('')
+  const { departmentName } = useTaxonomy()
   const users = useApi('/auth/users', { params: role && role !== 'staff' ? { role } : {} })
 
   const words = search.trim().toLowerCase()
@@ -124,6 +126,7 @@ export default function People() {
                     <td className="border-b border-sand-2 px-2 py-2.5">{u.email}</td>
                     <td className="border-b border-sand-2 px-2 py-2.5">
                       <Badge tone={u.role === 'customer' ? 'sand' : 'green'}>{u.role === 'customer' ? CUSTOMER_TYPE[u.customer_type] : ROLE[u.role]}</Badge>
+                      {u.department && <div className="mt-1 text-[13px] text-muted">{departmentName(u.department)}</div>}
                     </td>
                     <td className="border-b border-sand-2 px-2 py-2.5 whitespace-nowrap">{formatDate(u.date_joined)}</td>
                   </tr>

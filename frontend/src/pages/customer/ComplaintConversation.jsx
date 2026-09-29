@@ -1,12 +1,28 @@
 import { useRef, useState } from 'react'
 
 import { api, errorMessage } from '../../api/client'
-import { PaperclipIcon } from '../../components/icons'
+import Attachments from '../../components/Attachments'
 import { Button, Card, ErrorNotice, Loading, SuccessNotice } from '../../components/ui'
 import { formatDateTime } from '../../lib/format'
 import { useApi } from '../../lib/useApi'
 
+// What happens before our first reply, depending on how the customer wants to hear from us.
+const AWAITING_REPLY = {
+  email: 'The team will reply here, and we’ll email you a copy — you can answer straight from your inbox.',
+  phone: 'The team will reply here, and may call you if that’s quicker.',
+  chat: 'The team will reply here.',
+}
+
 const FINISHED = ['resolved', 'closed']
+
+/** Notes from the intake checks, in words that help rather than worry. */
+function friendlyNote(note) {
+  if (/no order reference/i.test(note)) return 'If this is about an order, reply with the order number (e.g. ORD-10042) — it helps us check dates and return windows faster.'
+  if (/no product was specified/i.test(note)) return null // not something the customer needs to act on
+  const order = note.match(/different from the product on order (\S+?)\.?$/i)
+  if (order) return `We’ve noted both the product you picked and order ${order[1]} — no need to change anything.`
+  return note
+}
 
 function progressSteps(complaint) {
   const handled = !['new', 'analyzed'].includes(complaint.status)
@@ -43,6 +59,7 @@ export default function ComplaintConversation({ complaintId, justSent, notes, on
   if (detail.error) return <ErrorNotice message={detail.error} onRetry={detail.reload} />
   const c = detail.data
   const finished = FINISHED.includes(c.status)
+  const intakeNotes = notes.map(friendlyNote).filter(Boolean)
 
   async function send() {
     if (!text.trim()) return
@@ -93,14 +110,21 @@ export default function ComplaintConversation({ complaintId, justSent, notes, on
       {justSent && (
         <SuccessNotice>
           <strong>Thanks — we’ve got it.</strong> Your reference is {c.complaint_id}.
-          {notes.length > 0 && (
+          {intakeNotes.length > 0 && (
             <ul className="m-0 mt-2 pl-5">
-              {notes.map((n) => (
+              {intakeNotes.map((n) => (
                 <li key={n}>{n}</li>
               ))}
             </ul>
           )}
         </SuccessNotice>
+      )}
+
+      {c.safety_concern && !FINISHED.includes(c.status) && (
+        <div role="note" className="flex flex-col gap-1 rounded-2xl bg-sun-soft px-5 py-4 text-sun-ink">
+          <strong>Please stay safe while we look into this</strong>
+          <span>Stop using the device and switch it off at the plug or breaker if you can do so safely. If there is smoke, fire or a burning smell that gets worse, leave the area and call the emergency services.</span>
+        </div>
       )}
 
       <ol aria-label="Progress" className="m-0 grid list-none grid-cols-4 gap-2 p-0 text-sm">
@@ -114,6 +138,12 @@ export default function ComplaintConversation({ complaintId, justSent, notes, on
           </li>
         ))}
       </ol>
+      {c.reply_expected_by && (
+        <p className="m-0 -mt-2 rounded-2xl bg-sand px-4 py-3 text-[15px]">
+          {c.messages.some((m) => m.sender === 'lumora') ? 'We aim to have this sorted by ' : 'We’ll reply by '}
+          <strong>{formatDateTime(c.reply_expected_by)}</strong>.
+        </p>
+      )}
 
       <div className="flex flex-col gap-4">
         <Bubble mine name="You" at={c.created_at}>
@@ -124,19 +154,10 @@ export default function ComplaintConversation({ complaintId, justSent, notes, on
             {m.text}
           </Bubble>
         ))}
-        {c.messages.length === 0 && <p className="m-0 text-[15px] text-muted">The team will reply here. You’ll also hear from us by {c.preferred_contact}.</p>}
+        {c.messages.length === 0 && <p className="m-0 text-[15px] text-muted">{AWAITING_REPLY[c.preferred_contact] || AWAITING_REPLY.email}</p>}
       </div>
 
-      {c.attachments.length > 0 && (
-        <div className="flex flex-wrap gap-2 text-sm">
-          {c.attachments.map((a) => (
-            <span key={a.id} className="inline-flex items-center gap-1.5 rounded-full bg-sand px-3 py-1.5">
-              <PaperclipIcon size={16} />
-              {a.original_filename}
-            </span>
-          ))}
-        </div>
-      )}
+      <Attachments complaintId={c.complaint_id} files={c.attachments} />
 
       <div className="flex flex-col gap-2">
         <label htmlFor="answer" className="text-[15px] font-semibold">

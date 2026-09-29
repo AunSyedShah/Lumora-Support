@@ -12,6 +12,11 @@ export const QueueIcon = (p) => (
     <path d="M4 7h16M4 12h16M4 17h10" />
   </Icon>
 )
+export const PlusIcon = (p) => (
+  <Icon {...p}>
+    <path d="M12 5v14M5 12h14" />
+  </Icon>
+)
 export const ClockIcon = (p) => (
   <Icon {...p}>
     <circle cx="12" cy="12" r="8" />

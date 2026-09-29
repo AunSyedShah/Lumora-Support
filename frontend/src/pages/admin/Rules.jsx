@@ -1,10 +1,12 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 
 import { api, downloadFile, errorMessage } from '../../api/client'
 import { Badge, Button, Card, ErrorNotice, Loading, SectionTitle, Select, SuccessNotice } from '../../components/ui'
 import { COMPENSATION, ESCALATION, PRIORITY } from '../../lib/labels'
 import { useTaxonomy } from '../../lib/taxonomy'
 import { useApi } from '../../lib/useApi'
+import RuleEditor from './RuleEditor'
 import { input } from './style'
 
 
@@ -79,6 +81,15 @@ function Tester() {
           <dd className="m-0">{result.allowed_compensation.map((c) => COMPENSATION[c]).join(', ') || '—'}</dd>
         </dl>
       )}
+      {result && !result.subcategory && (
+        <p className="m-0 text-[15px]">
+          Teach it: add a phrase from this complaint to the right problem in{' '}
+          <Link to="/settings/catalog" className="font-semibold text-forest">
+            Problem types &amp; teams
+          </Link>
+          , then check again.
+        </p>
+      )}
     </Card>
   )
 }
@@ -127,8 +138,18 @@ export default function Rules() {
   const names = useTaxonomy()
   const [kind, setKind] = useState('resolution')
   const [category, setCategory] = useState('')
-  const rules = useApi(kind === 'resolution' ? '/rules/resolution' : '/rules/escalation', { params: kind === 'resolution' && category ? { category } : {} })
+  // All rules are loaded and filtered here, so a new rule's ID never clashes with a hidden one.
+  const rules = useApi(kind === 'resolution' ? '/rules/resolution' : '/rules/escalation')
+  const shown = (rules.data || []).filter((r) => kind !== 'resolution' || !category || r.category === category)
   const [error, setError] = useState('')
+  const [editing, setEditing] = useState(null) // null | 'new' | the rule being changed
+  const [saved, setSaved] = useState('')
+
+  function edit(rule) {
+    setSaved('')
+    setEditing(rule)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
 
   async function toggle(rule) {
     setError('')
@@ -141,77 +162,105 @@ export default function Rules() {
   }
 
   return (
-    <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
-      <Card className="flex min-w-0 flex-col gap-4 p-6">
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <SectionTitle>{kind === 'resolution' ? 'How each problem is handled' : 'When to escalate'}</SectionTitle>
-          <div className="flex flex-wrap gap-2">
-            <Select
-              label="Rules"
-              value={kind}
-              onChange={setKind}
-              options={[
-                { value: 'resolution', label: 'Handling rules' },
-                { value: 'escalation', label: 'Escalation rules' },
-              ]}
-            />
-            {kind === 'resolution' && (
-              <Select label="Problem type" value={category} onChange={setCategory} options={[{ value: '', label: 'All types' }, ...(names.taxonomy?.categories || []).map((c) => ({ value: c.code, label: c.name }))]} />
-            )}
+    <div className="flex flex-col gap-5">
+      <SuccessNotice>{saved}</SuccessNotice>
+      {editing && (
+        <RuleEditor
+          key={`${kind}-${editing === 'new' ? 'new' : editing.rule_id}`}
+          kind={kind}
+          rule={editing === 'new' ? null : editing}
+          rules={rules.data}
+          onClose={() => setEditing(null)}
+          onSaved={(text) => {
+            setSaved(text)
+            setEditing(null)
+            rules.reload()
+          }}
+        />
+      )}
+      <div className="grid grid-cols-1 gap-5 2xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
+        <Card className="flex min-w-0 flex-col gap-4 p-6">
+          <div className="flex flex-wrap items-end justify-between gap-3">
+            <SectionTitle>{kind === 'resolution' ? 'How each problem is handled' : 'When to escalate'}</SectionTitle>
+            <div className="flex min-w-0 flex-wrap gap-2">
+              <Select
+                label="Rules"
+                value={kind}
+                onChange={(value) => {
+                  setKind(value)
+                  setEditing(null)
+                }}
+                options={[
+                  { value: 'resolution', label: 'Handling rules' },
+                  { value: 'escalation', label: 'Escalation rules' },
+                ]}
+              />
+              {kind === 'resolution' && (
+                <Select label="Problem type" value={category} onChange={setCategory} options={[{ value: '', label: 'All types' }, ...(names.taxonomy?.categories || []).map((c) => ({ value: c.code, label: c.name }))]} />
+              )}
+              <Button className="self-end" onClick={() => edit('new')}>
+                Add a rule
+              </Button>
+            </div>
           </div>
-        </div>
-        <ErrorNotice message={error || rules.error} onRetry={rules.error ? rules.reload : undefined} />
-        {rules.loading && !rules.data && <Loading />}
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[720px] border-collapse text-[14px]">
-            <thead>
-              <tr className="text-left text-[13px] text-muted">
-                {(kind === 'resolution' ? ['Problem', 'When', 'Team', 'Priority', 'Escalate to', 'On'] : ['Rule', 'When', 'Escalate to', 'Team', 'On']).map((h) => (
-                  <th key={h} scope="col" className="border-b border-line-soft px-2 py-2 font-semibold">
-                    {h}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {(rules.data || []).map((r) => (
-                <tr key={r.rule_id} className={r.is_active ? '' : 'text-muted'}>
-                  <td className="border-b border-sand-2 px-2 py-2">
-                    <div className="font-semibold">{kind === 'resolution' ? names.subcategoryName(r.subcategory) : r.name}</div>
-                    <div className="text-[12px] text-muted">{r.rule_id}</div>
-                  </td>
-                  <td className="border-b border-sand-2 px-2 py-2">{describe(r.conditions, names)}</td>
-                  {kind === 'resolution' ? (
-                    <>
-                      <td className="border-b border-sand-2 px-2 py-2">{names.departmentName(r.department)}</td>
-                      <td className="border-b border-sand-2 px-2 py-2">{PRIORITY[r.priority]}</td>
-                      <td className="border-b border-sand-2 px-2 py-2">{ESCALATION[r.escalation_level]}</td>
-                    </>
-                  ) : (
-                    <>
-                      <td className="border-b border-sand-2 px-2 py-2">{ESCALATION[r.escalation_level]}</td>
-                      <td className="border-b border-sand-2 px-2 py-2">{names.departmentName(r.target_department) || '—'}</td>
-                    </>
-                  )}
-                  <td className="border-b border-sand-2 px-2 py-2">
-                    <label className="flex items-center gap-2">
-                      <input type="checkbox" checked={r.is_active} onChange={() => toggle(r)} className="size-4 accent-forest" aria-label={`Rule ${r.rule_id} in use`} />
-                      {!r.is_active && <Badge tone="sand">Off</Badge>}
-                    </label>
-                  </td>
+          <ErrorNotice message={error || rules.error} onRetry={rules.error ? rules.reload : undefined} />
+          {rules.loading && !rules.data && <Loading />}
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[720px] border-collapse text-[14px]">
+              <thead>
+                <tr className="text-left text-[13px] text-muted">
+                  {(kind === 'resolution' ? ['Problem', 'When', 'Team', 'Priority', 'Escalate to', 'On', ''] : ['Rule', 'When', 'Escalate to', 'Team', 'On', '']).map((h) => (
+                    <th key={h} scope="col" className="border-b border-line-soft px-2 py-2 font-semibold">
+                      {h}
+                    </th>
+                  ))}
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </Card>
-      <div className="flex flex-col gap-5">
-        <Tester />
-        <Card className="flex flex-col gap-3 p-6">
-          <SectionTitle>Edit many rules at once</SectionTitle>
-          <p className="m-0 text-[15px] text-muted">Download the {kind === 'resolution' ? 'handling' : 'escalation'} rules, change them in Excel, and upload the file again.</p>
-          <ImportExport type={kind} onImported={rules.reload} />
+              </thead>
+              <tbody>
+                {shown.map((r) => (
+                  <tr key={r.rule_id} className={r.is_active ? '' : 'text-muted'}>
+                    <td className="border-b border-sand-2 px-2 py-2">
+                      <div className="font-semibold">{kind === 'resolution' ? names.subcategoryName(r.subcategory) : r.name}</div>
+                      <div className="text-[12px] text-muted">{r.rule_id}</div>
+                    </td>
+                    <td className="border-b border-sand-2 px-2 py-2">{describe(r.conditions, names)}</td>
+                    {kind === 'resolution' ? (
+                      <>
+                        <td className="border-b border-sand-2 px-2 py-2">{names.departmentName(r.department)}</td>
+                        <td className="border-b border-sand-2 px-2 py-2">{PRIORITY[r.priority]}</td>
+                        <td className="border-b border-sand-2 px-2 py-2">{ESCALATION[r.escalation_level]}</td>
+                      </>
+                    ) : (
+                      <>
+                        <td className="border-b border-sand-2 px-2 py-2">{ESCALATION[r.escalation_level]}</td>
+                        <td className="border-b border-sand-2 px-2 py-2">{names.departmentName(r.target_department) || '—'}</td>
+                      </>
+                    )}
+                    <td className="border-b border-sand-2 px-2 py-2">
+                      <label className="flex items-center gap-2">
+                        <input type="checkbox" checked={r.is_active} onChange={() => toggle(r)} className="size-4 accent-forest" aria-label={`Rule ${r.rule_id} in use`} />
+                        {!r.is_active && <Badge tone="sand">Off</Badge>}
+                      </label>
+                    </td>
+                    <td className="border-b border-sand-2 px-2 py-2 text-right">
+                      <Button variant="ghost" onClick={() => edit(r)} aria-label={`Change rule ${r.rule_id}`}>
+                        Change
+                      </Button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </Card>
+        <div className="flex flex-col gap-5">
+          <Tester />
+          <Card className="flex flex-col gap-3 p-6">
+            <SectionTitle>Edit many rules at once</SectionTitle>
+            <p className="m-0 text-[15px] text-muted">Download the {kind === 'resolution' ? 'handling' : 'escalation'} rules, change them in Excel, and upload the file again.</p>
+            <ImportExport type={kind} onImported={rules.reload} />
+          </Card>
+        </div>
       </div>
     </div>
   )

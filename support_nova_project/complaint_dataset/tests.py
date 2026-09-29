@@ -12,16 +12,17 @@ from unittest import mock
 
 from django.core.management import call_command
 from django.test import TestCase
+from django.utils import timezone
 
 from accounts.models import User
 from complaints.facts import compute_facts
-from complaints.models import Order
+from complaints.models import Complaint, Order
 from catalog.models import Product
 
 from . import csv_io, generator
 from .evaluation import evaluate_case, summarize
 from .expected import expected_labels, product_names
-from .loader import load_dataset
+from .loader import load_dataset, spread_dates
 from .models import DatasetCase
 from .orders import order_fields
 from .scenarios import INJECTIONS
@@ -247,3 +248,27 @@ class LoaderTests(RulesLoaded):
         summary = summarize(rows, ("python",))
         self.assertEqual(summary["intake"]["repeat_or_duplicate_cases"], 1)
         self.assertIn("python", summary["accuracy_percent"])
+
+    def test_spread_dates_moves_families_together(self):
+        specs = self.make_specs()
+        texts = {s.case_id: {"title": "Camera arrived broken", "supporting_information": "", "requested_resolution": "",
+                             "description": f"Order {{ORDER_REF}} arrived crushed and the camera is broken, case {s.case_id}. See {{PREVIOUS_REF}}."}
+                 for s in specs}
+        load_dataset(specs, texts, password="x")
+        first, second, _ = (DatasetCase.objects.get(case_id=s.case_id).complaint for s in specs)
+        gap_before = (first.created_at.date() - first.order.delivery_date).days
+        now = timezone.now()
+
+        self.assertEqual(spread_dates(30, now=now), 3)
+        first.refresh_from_db()
+        second.refresh_from_db()
+        first.order.refresh_from_db()
+        self.assertTrue(now - timedelta(days=31) <= first.created_at < second.created_at <= now)  # repeat after original
+        self.assertLessEqual(abs((first.created_at.date() - first.order.delivery_date).days - gap_before), 1)  # facts stay true
+        self.assertLess(abs(first.audit_log.first().created_at - first.created_at), timedelta(minutes=1))  # history moved too
+        if first.sla_response_due:
+            self.assertGreater(first.sla_response_due, first.created_at)
+
+        before = [c.created_at for c in (first, second)]
+        spread_dates(30, now=now)  # same day, same window: nothing moves
+        self.assertEqual([c.created_at for c in Complaint.objects.filter(pk__in=[first.pk, second.pk]).order_by("pk")], before)

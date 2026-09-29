@@ -50,7 +50,7 @@ export default function Login() {
         <Formik
           initialValues={{ username: '', password: '' }}
           validate={(v) => ({
-            ...(!v.username.trim() && { username: 'Enter your username.' }),
+            ...(!v.username.trim() && { username: 'Enter your email or username.' }),
             ...(!v.password && { password: 'Enter your password.' }),
           })}
           onSubmit={submit}
@@ -63,7 +63,7 @@ export default function Login() {
               </div>
               <h2 className="m-0 font-display text-[32px] font-bold tracking-tight">Sign in</h2>
               <ErrorNotice message={error} />
-              <TextField name="username" label="Username" autoComplete="username" />
+              <TextField name="username" label="Email or username" autoComplete="username" />
               <TextField name="password" label="Password" type="password" autoComplete="current-password" />
               <Button type="submit" disabled={isSubmitting} className="min-h-12 text-base">
                 {isSubmitting ? 'Signing in…' : 'Sign in'}

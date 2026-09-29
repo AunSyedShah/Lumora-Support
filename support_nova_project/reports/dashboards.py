@@ -6,6 +6,9 @@ agent_dashboard  the agent's OWN assigned complaints with the GenAI recommendati
 admin_dashboard  organisation-wide metrics for reviewers, managers and administrators
 """
 
+import math
+from datetime import timedelta
+
 from django.utils import timezone
 
 from complaints.models import Complaint
@@ -38,13 +41,20 @@ def reason_type(reason):
     return "other"
 
 
+def next_deadline(sla):
+    """The deadline the agent must beat next: the first reply until we have replied, then the resolution."""
+    if sla["response"] in ("on_track", "at_risk", "breached"):
+        return {"kind": "reply", "due": sla["response_due"], "state": sla["response"]}
+    return {"kind": "resolve", "due": sla["resolution_due"], "state": sla["resolution"]}
+
+
 def agent_dashboard(user):
     open_statuses = Complaint.OPEN_STATUSES
     mine = visible_complaints(user).filter(assigned_to=user).select_related("category", "subcategory")
     open_items = mine.filter(status__in=open_statuses)
     now = timezone.now()
     items = []
-    for c in open_items.order_by("sla_resolution_due"):
+    for c in open_items:
         resolution = c.resolution or {}
         sla = sla_status(c, now=now)
         validation = c.validations.first()
@@ -76,16 +86,28 @@ def agent_dashboard(user):
                 {"level": c.escalation_level, "rules": resolution.get("escalation_rules", [])}
                 if (c.escalation_level or "none") != "none" else None
             ),
-            "sla": {"response": sla["response"], "resolution": sla["resolution"], "resolution_due": sla["resolution_due"]},
+            "sla": {"response": sla["response"], "resolution": sla["resolution"], "response_due": sla["response_due"],
+                    "resolution_due": sla["resolution_due"], "paused": sla["paused"]},
+            "next_deadline": next_deadline(sla),
             "follow_up_due": c.follow_up_due if c.follow_up_done_at is None else None,
         })
+    # Most pressing first: overdue ones by priority, then everything else by the nearest deadline.
+    far = now + timedelta(days=3650)
+    rank = {"P0": 0, "P1": 1, "P2": 2, "P3": 3}
+
+    def pressing(item):
+        overdue = item["next_deadline"]["state"] == "breached"
+        return (not overdue, rank.get(item["priority"], 9) if overdue else 0, item["next_deadline"]["due"] or far)
+
+    items.sort(key=pressing)
     return {
         "agent": user.username,
         "open_assigned": len(items),
         "by_status": _count(items, "status"),
         "by_priority": _count(items, "priority"),
-        "sla_at_risk": sum(i["sla"]["resolution"] == "at_risk" for i in items),
-        "sla_breached": sum(i["sla"]["resolution"] == "breached" for i in items),
+        # counted on the next deadline, so a late first reply shows up as overdue too
+        "sla_at_risk": sum(i["next_deadline"]["state"] == "at_risk" for i in items),
+        "sla_breached": sum(i["next_deadline"]["state"] == "breached" for i in items),
         "escalated": sum(i["escalation_warning"] is not None for i in items),
         "follow_ups_due": sum(1 for i in items if i["follow_up_due"] and i["follow_up_due"] <= now),
         "resolved_total": mine.filter(status__in=[Complaint.Status.RESOLVED, Complaint.Status.CLOSED]).count(),
@@ -133,10 +155,52 @@ def manual_review_summary(queryset):
     }
 
 
+PENDING = ("on_track", "at_risk", "breached")
+
+
+def with_next_deadline(df):
+    """Add the deadline that matters now (as in next_deadline): the first reply until it is sent, then the resolution."""
+    if not len(df):
+        return df.assign(deadline_kind=[], deadline_state=[])
+    reply_pending = df["sla_response"].isin(PENDING)
+    return df.assign(deadline_kind=reply_pending.map({True: "reply", False: "resolve"}),
+                     deadline_state=df["sla_response"].where(reply_pending, df["sla_resolution"]))
+
+
+def department_rows(df):
+    """Per-team numbers (used by this report and the manager's overview)."""
+    df = with_next_deadline(df)
+    rows = []
+    for department, group in (df.groupby("department") if len(df) else []):
+        done = group[group["sla_resolution"].isin(["met", "missed"])]
+        rows.append({
+            "department": department,
+            "complaints": len(group),
+            "open": int(group["is_open"].sum()),
+            "resolved_or_closed": int((~group["is_open"]).sum()),
+            "escalated": int(group["escalated"].sum()),
+            "sla_met_percent": round(100 * int((done["sla_resolution"] == "met").sum()) / len(done), 1) if len(done) else None,
+            # late on whichever deadline comes next, so an unanswered customer counts too
+            "sla_breached_open": int((group["is_open"] & (group["deadline_state"] == "breached")).sum()),
+            "avg_resolution_hours": round(float(group["resolution_hours"].dropna().mean()), 1)
+            if group["resolution_hours"].notna().any() else None,
+            "avg_verification_score": round(float(group["verification_score"].dropna().mean()), 1)
+            if group["verification_score"].notna().any() else None,
+        })
+    rows.sort(key=lambda r: -r["complaints"])
+    return rows
+
+
+def _records(frame):
+    """DataFrame rows as dicts, with pandas' NaN (an empty value) turned into None - NaN is not valid JSON."""
+    return [{k: (None if isinstance(v, float) and math.isnan(v) else v) for k, v in row.items()}
+            for row in frame.to_dict("records")]
+
+
 def admin_dashboard(queryset):
-    df = complaint_frame(queryset)
+    df = with_next_deadline(complaint_frame(queryset))
     total = len(df)
-    at_risk = df[df["is_open"] & df["sla_resolution"].isin(["at_risk", "breached"])] if total else df
+    at_risk = df[df["is_open"] & df["deadline_state"].isin(["at_risk", "breached"])] if total else df
     trends = detect_trends(df)
     return {
         "total_complaints": total,
@@ -144,6 +208,7 @@ def admin_dashboard(queryset):
         "category_distribution": distribution(df, "category"),
         "department_distribution": distribution(df, "department"),
         "priority_levels": distribution(df, "priority"),
+        "sentiment_distribution": distribution(df, "sentiment"),
         "escalations": {
             "total": int(df["escalated"].sum()) if total else 0,
             "open": int((df["escalated"] & df["is_open"]).sum()) if total else 0,
@@ -151,12 +216,15 @@ def admin_dashboard(queryset):
         },
         "resolution_status": distribution(df, "status"),
         "sla_risks": {
-            "at_risk": int((at_risk["sla_resolution"] == "at_risk").sum()) if total else 0,
-            "breached": int((at_risk["sla_resolution"] == "breached").sum()) if total else 0,
-            "most_urgent": at_risk.sort_values("created_at")[
-                ["complaint_id", "priority", "department", "assigned_to", "sla_resolution"]
-            ].head(10).to_dict("records") if total else [],
+            "at_risk": int((at_risk["deadline_state"] == "at_risk").sum()) if total else 0,
+            "breached": int((at_risk["deadline_state"] == "breached").sum()) if total else 0,
+            # overdue first, then the oldest
+            "most_urgent": _records(at_risk.assign(late=at_risk["deadline_state"] != "breached").sort_values(["late", "created_at"])[
+                ["complaint_id", "title", "priority", "department", "assigned_to", "assigned_to_name", "sla_resolution", "deadline_kind",
+                 "deadline_state"]
+            ].head(10)) if total else [],
         },
+        "teams": department_rows(df),
         "genai_python_mismatches": mismatch_summary(queryset),
         "manual_review": manual_review_summary(queryset),
         "trend_alerts": [t["message"] for key in ("rising", "recurring_product_issues", "repeated_service_failures",
