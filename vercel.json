@@ -2,10 +2,12 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "services": {
     "backend": {
-      "root": "support_nova_project/"
+      "root": "support_nova_project/",
+      "framework": "django"
     },
     "frontend": {
       "root": "frontend/",
+      "framework": "vite",
       "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
     }
   },
