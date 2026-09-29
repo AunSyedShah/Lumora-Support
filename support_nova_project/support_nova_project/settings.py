@@ -131,6 +131,9 @@ if os.getenv('DATABASE_URL'):
         'OPTIONS': {'sslmode': 'require', **dict(parse_qsl(_db.query))},
         'CONN_MAX_AGE': 60,
         'CONN_HEALTH_CHECKS': True,
+        # Neon's DATABASE_URL goes through PgBouncer in transaction mode, which cannot keep the
+        # server-side cursors Django uses for .iterator() (Django docs: "Transaction pooling").
+        'DISABLE_SERVER_SIDE_CURSORS': True,
     }
 
 
