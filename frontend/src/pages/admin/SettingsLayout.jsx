@@ -6,7 +6,9 @@ const TABS = [
   ['/settings/policies', 'Policies'],
   ['/settings/rules', 'Rules'],
   ['/settings/catalog', 'Problem types & teams'],
+  ['/settings/products', 'Products'],
   ['/settings/assistant', 'Assistant instructions'],
+  ['/settings/chat', 'Customer chat'],
   ['/settings/people', 'People'],
 ]
 

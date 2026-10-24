@@ -3,7 +3,7 @@ Dashboards, analytics, trends and reports (SRS Steps 62-68).
 
 Access:  agent dashboard            -> the agent's own assigned complaints
          everything else            -> reviewers, managers, administrators (organisation-wide data)
-All endpoints accept the same filters (date range, department, category, priority, channel).
+All endpoints accept the same filters (date range, department, category, priority, channel, sentiment).
 """
 
 from datetime import date
@@ -35,6 +35,7 @@ class Filters(Schema):
     category: str | None = None
     priority: str | None = None
     channel: str | None = None
+    sentiment: str | None = None
 
 
 def _queryset(request, filters):

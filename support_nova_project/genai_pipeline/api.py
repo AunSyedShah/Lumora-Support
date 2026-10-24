@@ -14,11 +14,14 @@ from accounts.schemas import ErrorOut
 from complaints.models import Complaint
 from complaints.permissions import get_visible_complaint, visible_complaints
 
+from .health import current_status, run_check, usage
 from .models import GenAIAnalysis, PromptTemplate
 from .output_schema import Tone, json_schema
 from .pipeline import analyze_complaint
 from .prompts import RETRY_MARKER, PromptError, activate
 from .schemas import (
+    AiStatusOut,
+    AiUsageOut,
     AnalysisEvidenceOut,
     AnalysisOut,
     AnalysisSummaryOut,
@@ -38,6 +41,27 @@ REQUIRED_PLACEHOLDERS = {
 
 def _analyses():
     return GenAIAnalysis.objects.select_related("complaint", "prompt_template", "requested_by")
+
+
+@router.get("/status", response=AiStatusOut)
+def ai_status(request):
+    """Is the AI assistant working? Staff see a notice when it is not (no key, no balance, unreachable ...)."""
+    require_role(request, *STAFF_ROLES)
+    return current_status()
+
+
+@router.get("/usage", response=AiUsageOut)
+def ai_usage(request):
+    """Administrators: AI calls, tokens and how much of the input came from DeepSeek's context cache."""
+    require_role(request, ADMIN)
+    return usage()
+
+
+@router.post("/check", response=AiStatusOut)
+def ai_check(request):
+    """Administrators: send one tiny real request to the AI provider and report the result in plain words."""
+    require_role(request, ADMIN)
+    return run_check()
 
 
 @router.post("/analyze/{complaint_id}", response={200: AnalysisOut, 503: ErrorOut})

@@ -26,7 +26,9 @@ from .importer import (
 )
 from .models import EscalationRule, ResolutionRule
 from .references import check_all_references
+from .suggestions import keyword_suggestions
 from .schemas import (
+    KeywordSuggestionOut,
     EscalationRuleIn,
     EscalationRuleOut,
     EscalationRuleUpdate,
@@ -225,6 +227,13 @@ def evaluate_facts(request, data: FactsIn):
     require_role(request, *STAFF_ROLES)
     facts = Facts(**data.model_dump(exclude={"subcategory"}))
     return evaluate(facts, subcategory_code=data.subcategory.upper() if data.subcategory else None)
+
+
+@router.get("/keyword-suggestions", response=list[KeywordSuggestionOut])
+def key_phrase_suggestions(request):
+    """Phrases the rules could learn, mined from complaints the rules missed or a reviewer reclassified."""
+    require_role(request, ADMIN)
+    return keyword_suggestions()
 
 
 @router.get("/policy-check", response=list[PolicyCheckOut])

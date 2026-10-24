@@ -11,14 +11,17 @@ Then the facts the system calculated are compared with the spec, and differences
 """
 
 import os
-from datetime import date
+import random
+from datetime import date, timedelta
 
 from django.contrib.auth.hashers import make_password
 from django.db import transaction
+from django.db.models import F
+from django.utils import timezone
 
 from accounts.models import User
 from catalog.models import Product
-from complaints.models import Order
+from complaints.models import Complaint, Order
 from complaints.services import ComplaintValidationError, submit_complaint
 
 from .models import DatasetCase
@@ -115,6 +118,71 @@ def load_dataset(specs, texts, today=None, password=None):
             continue
         results.append(load_case(spec, texts[spec.case_id], by_id, today, password_hash))
     return results
+
+
+def spread_dates(days, now=None):
+    """
+    Spread the loaded dataset over the last `days` days, so daily volumes, trends and SLA ages look
+    like a working support desk instead of 500 complaints arriving in one afternoon.
+
+    A family (an original and its repeats/duplicates) moves together: families are placed across the
+    window in complaint-number order, members follow their original by about a day each, and every
+    timestamp of a complaint (deadlines, audit, notes, analyses, validations) plus its order's dates
+    move by the same amount - so facts such as "delivered 3 days before the complaint" stay true.
+    Deterministic: the same `days` on the same day gives the same dates.
+    """
+    now = now or timezone.now()
+    cases = {c.complaint_id: c for c in DatasetCase.objects.filter(complaint__isnull=False).select_related("complaint")}
+
+    def root_of(pk):
+        seen = set()
+        while pk not in seen:
+            seen.add(pk)
+            complaint = cases[pk].complaint
+            parent = complaint.related_complaint_id or complaint.previous_complaint_id
+            if parent not in cases:
+                return pk
+            pk = parent
+        return pk
+
+    families = {}
+    for pk in sorted(cases):
+        families.setdefault(root_of(pk), []).append(cases[pk].complaint)
+    roots = sorted(families)  # complaint pk order = submission order
+    moved = 0
+    for position, root_pk in enumerate(roots):
+        members = families[root_pk]
+        rng = random.Random(root_pk)
+        days_back = days * (1 - (position + 1) / len(roots)) + rng.uniform(0, 1)
+        start = timezone.localtime(now - timedelta(days=days_back)).replace(hour=rng.randint(8, 19), minute=rng.randint(0, 59))
+        for i, complaint in enumerate(members):
+            target = min(start + timedelta(hours=i * rng.randint(18, 40)), now - timedelta(minutes=5 * (len(members) - i)))
+            delta = target - complaint.created_at
+            if i == 0 and complaint.order_id:  # the family's shared order moves with its original
+                _shift_order(complaint.order, timedelta(days=round(delta.total_seconds() / 86400)))
+            _shift_complaint(complaint, delta)
+            moved += 1
+    return moved
+
+
+def _shift_order(order, shift):
+    for field in ("order_date", "estimated_delivery_date", "delivery_date"):
+        if getattr(order, field) is not None:
+            setattr(order, field, getattr(order, field) + shift)
+    order.save(update_fields=["order_date", "estimated_delivery_date", "delivery_date"])
+
+
+COMPLAINT_TIMES = ("created_at", "response_sent_at", "sla_response_due", "sla_resolution_due", "sla_clock_start",
+                   "awaiting_since", "first_response_at", "resolved_at", "closed_at", "follow_up_due", "follow_up_done_at")
+
+
+def _shift_complaint(complaint, delta):
+    Complaint.objects.filter(pk=complaint.pk).update(**{
+        f: F(f) + delta for f in COMPLAINT_TIMES if getattr(complaint, f) is not None
+    })
+    for related in (complaint.audit_log, complaint.notes, complaint.genai_analyses, complaint.validations):
+        related.update(created_at=F("created_at") + delta)
+    complaint.attachments.update(uploaded_at=F("uploaded_at") + delta)
 
 
 def remove_dataset():

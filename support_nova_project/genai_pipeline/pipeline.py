@@ -51,7 +51,7 @@ def analyze_complaint(complaint, tone=None, requested_by=None):
                 settings.GENAI_MAX_TOKENS, thinking=settings.GENAI_THINKING,
             )
         except LLMError as e:
-            attempts.append({"attempt": number, "ok": False, "stage": "api", "errors": [str(e)]})
+            attempts.append({"attempt": number, "ok": False, "stage": "api", "kind": e.kind, "errors": [str(e)], "detail": e.detail})
             error = str(e)
             if not e.retryable:
                 break

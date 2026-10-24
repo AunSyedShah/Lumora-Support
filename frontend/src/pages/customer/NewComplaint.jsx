@@ -1,38 +1,48 @@
-import { Form, Formik } from 'formik'
-import { useRef, useState } from 'react'
+import { Form, Formik, useFormikContext } from 'formik'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 
 import { api, errorMessage } from '../../api/client'
-import { Button, Card, ErrorNotice, PillChoice, SectionTitle, SelectField, TextArea, TextField } from '../../components/ui'
+import { useAuth } from '../../auth/context'
+import { Button, Card, ErrorNotice, FocusFirstError, PillChoice, SectionTitle, SelectField, TextArea, TextField } from '../../components/ui'
+import { ALLOWED_FILES, checkFiles, MAX_FILES } from '../../lib/files'
 import { formatDate } from '../../lib/format'
 import { useApi } from '../../lib/useApi'
 
-const ALLOWED_FILES = ['.pdf', '.png', '.jpg', '.jpeg', '.txt']
-const MAX_FILES = 5
-const MAX_MB = 5
+// The same limits the API applies, checked here so people see them before sending.
+const LIMITS = { title: 200, description: 5000, requested_resolution: 500 }
 
-// The same minimums the API applies, checked here so people see them before sending.
-function validate(v) {
+function validate(v, needsPhone) {
   const errors = {}
+  if (needsPhone && v.preferred_contact === 'phone' && v.phone.replace(/\D/g, '').length < 7) errors.phone = 'Add the number we should call.'
   if (v.title.trim().length < 5) errors.title = 'Give your complaint a short title (at least 5 characters).'
+  else if (v.title.trim().length > LIMITS.title) errors.title = `Please keep the title under ${LIMITS.title} characters.`
   const words = v.description.trim().split(/\s+/).filter(Boolean)
   if (v.description.trim().length < 20 || words.length < 4) errors.description = 'Please describe what happened in a sentence or two.'
+  else if (v.description.trim().length > LIMITS.description) errors.description = `Please shorten this to ${LIMITS.description} characters — you can add more in a reply.`
   return errors
 }
 
-function checkFiles(files) {
-  if (files.length > MAX_FILES) return `You can attach up to ${MAX_FILES} files.`
-  for (const f of files) {
-    const ext = f.name.slice(f.name.lastIndexOf('.')).toLowerCase()
-    if (!ALLOWED_FILES.includes(ext)) return `${f.name}: only PDF, PNG, JPG and TXT files can be attached.`
-    if (f.size > MAX_MB * 1024 * 1024) return `${f.name} is larger than ${MAX_MB} MB.`
-  }
-  return ''
+/** Picking an order fills in its product (the customer can still change it). */
+function ProductFromOrder({ orders, products }) {
+  const { values, setFieldValue } = useFormikContext()
+  const lastOrder = useRef(null)
+  useEffect(() => {
+    if (values.order_ref === lastOrder.current) return // only when the order itself changes
+    const order = orders.find((o) => o.order_ref === values.order_ref)
+    const product = order && products.find((p) => p.name === order.product)
+    if (!product) return // wait until both lists have loaded
+    lastOrder.current = values.order_ref
+    setFieldValue('product', product.code)
+  }, [values.order_ref, orders, products, setFieldValue])
+  return null
 }
 
 export default function NewComplaint() {
   const navigate = useNavigate()
   const location = useLocation()
+  const { user } = useAuth()
+  const needsPhone = !user.phone
   const orders = useApi('/orders/my')
   const products = useApi('/catalog/products', { params: { active_only: true } })
   const earlier = useApi('/complaints/my')
@@ -71,6 +81,7 @@ export default function NewComplaint() {
         product: values.product || null,
         previous_complaint_ref: values.previous_complaint_ref || null,
         requested_resolution: values.requested_resolution.trim(),
+        supporting_information: needsPhone && values.preferred_contact === 'phone' ? `Phone: ${values.phone.trim()}` : '',
         preferred_contact: values.preferred_contact,
         channel: 'web',
       })
@@ -95,13 +106,15 @@ export default function NewComplaint() {
     <div className="grid grid-cols-1 gap-7 lg:grid-cols-[minmax(0,1fr)_360px]">
       <Card className="px-6 py-8 md:px-10">
         <Formik
-          initialValues={{ title: '', description: '', order_ref: location.state?.order || '', product: '', requested_resolution: '', previous_complaint_ref: '', preferred_contact: 'email' }}
-          validate={validate}
+          initialValues={{ title: '', description: '', order_ref: location.state?.order || '', product: '', requested_resolution: '', previous_complaint_ref: '', preferred_contact: 'email', phone: '' }}
+          validate={(values) => validate(values, needsPhone)}
           onSubmit={submit}
           enableReinitialize={false}
         >
-          {({ isSubmitting }) => (
+          {({ isSubmitting, values }) => (
             <Form className="flex flex-col gap-6" noValidate>
+              <FocusFirstError />
+              <ProductFromOrder orders={orders.data || []} products={products.data || []} />
               <h1 className="m-0 font-display text-[34px] font-bold tracking-tight">Tell us what happened</h1>
               <ErrorNotice message={error} />
               {duplicateOf && (
@@ -111,13 +124,16 @@ export default function NewComplaint() {
                   </Link>
                 </p>
               )}
-              <TextField name="title" label="In a few words, what’s wrong?" placeholder="e.g. Thermostat order hasn’t arrived" />
-              <TextArea name="description" label="Tell us more" rows={5} placeholder="What happened, when, and what you have already tried." />
+              <TextField name="title" label="In a few words, what’s wrong?" placeholder="e.g. Thermostat order hasn’t arrived" maxLength={LIMITS.title} />
+              <TextArea name="description" label="Tell us more" rows={5} placeholder="What happened, when, and what you have already tried." maxLength={LIMITS.description} />
               <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
-                <SelectField name="order_ref" label="Which order?" hint="(if it’s about one)" options={orderOptions} />
+                {/* only asked when there is something to choose */}
+                {orders.data?.length > 0 && <SelectField name="order_ref" label="Which order?" hint="(if it’s about one)" options={orderOptions} />}
                 <SelectField name="product" label="Which product?" options={productOptions} />
-                <TextField name="requested_resolution" label="What would you like us to do?" placeholder="e.g. Tell me when it will arrive" />
-                <SelectField name="previous_complaint_ref" label="Already told us about this?" hint="(optional)" options={earlierOptions} />
+                {earlier.data?.length > 0 && <SelectField name="previous_complaint_ref" label="Already told us about this?" hint="(optional)" options={earlierOptions} />}
+                <div className="md:col-span-2">
+                  <TextField name="requested_resolution" label="What would you like us to do?" placeholder="e.g. Tell me when it will arrive" maxLength={LIMITS.requested_resolution} />
+                </div>
               </div>
               <PillChoice
                 name="preferred_contact"
@@ -125,9 +141,9 @@ export default function NewComplaint() {
                 options={[
                   { value: 'email', label: 'Email' },
                   { value: 'phone', label: 'Phone' },
-                  { value: 'chat', label: 'Chat' },
                 ]}
               />
+              {needsPhone && values.preferred_contact === 'phone' && <TextField name="phone" type="tel" label="Your phone number" placeholder="e.g. +1 555 0100" autoComplete="tel" />}
               <div className="flex flex-col gap-2">
                 <label htmlFor="files" className="text-[15px] font-semibold">
                   Photos or documents <span className="font-normal text-muted">(optional — PDF, PNG, JPG, up to {MAX_FILES} files)</span>
@@ -142,7 +158,7 @@ export default function NewComplaint() {
                   {isSubmitting ? 'Sending…' : 'Send complaint'}
                 </Button>
                 <span className="text-sm text-muted">
-                  {isSubmitting ? 'We’re reading it now — this takes a few seconds.' : 'Please don’t include card numbers or passwords.'}
+                  {isSubmitting ? 'We’re reading it and checking it against our policies — this can take up to half a minute.' : 'Please don’t include card numbers or passwords.'}
                 </span>
               </div>
             </Form>
@@ -163,6 +179,7 @@ export default function NewComplaint() {
               </Link>
               .
             </li>
+            <li>If you choose email, we send you every reply too — and you can answer straight from your inbox.</li>
           </ol>
         </div>
         <Card className="flex flex-col gap-2 p-6">

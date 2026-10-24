@@ -120,13 +120,14 @@ def update_document(request, id: int, data: DocumentUpdate):
     return _documents().get(id=document.id)
 
 
-@router.delete("/documents/{int:id}", response={204: None, 409: ErrorOut})
+@router.delete("/documents/{int:id}", response={204: None})
 def delete_document(request, id: int):
-    """Only drafts can be deleted; approved versions are kept for traceability."""
+    """
+    Delete any version with its sections. Complaints already handled keep the policy references written
+    on them (plain text), and a rule whose policy is gone shows up in /rules/policy-check.
+    """
     require_role(request, ADMIN)
     document = get_object_or_404(PolicyDocument, id=id)
-    if document.status != DocumentStatus.DRAFT:
-        raise HttpError(409, "Only draft documents can be deleted. Mark others as superseded instead.")
     document.file.delete(save=False)
     document.delete()
     return 204, None

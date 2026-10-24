@@ -26,6 +26,14 @@ FIRST_NAMES = ["Ayesha", "Bilal", "Chen", "Daniela", "Emeka", "Fatima", "George"
                "Kofi", "Layla", "Mateo", "Nadia", "Omar", "Priya", "Quinn", "Rosa", "Sami", "Tara"]
 LAST_NAMES = ["Khan", "Smith", "Garcia", "Okafor", "Lee", "Rossi", "Ahmed", "Novak", "Silva", "Brown"]
 
+# A named person per team (customers see "Lena from Logistics & Delivery", not a username).
+TEAM_AGENTS = {
+    "ACCOUNT_SECURITY": ("Omar", "Haddad"), "BILLING": ("Priya", "Nair"), "CUSTOMER_RELATIONS": ("Grace", "Mensah"),
+    "INSTALLATION": ("Tom", "Becker"), "LOGISTICS": ("Leo", "Martins"), "MANAGEMENT": ("David", "Kim"),
+    "PRIVACY": ("Aisha", "Rahman"), "PRODUCT_SAFETY": ("Marco", "Rossi"), "RETURNS": ("Hannah", "Clarke"),
+    "TECH_SUPPORT": ("Sam", "Okoro"), "WARRANTY": ("Nina", "Petrova"),
+}
+
 STAFF = [
     ("admin", User.Role.ADMIN, "Lumora", "Admin"),
     ("manager1", User.Role.MANAGER, "Maya", "Manager"),
@@ -55,11 +63,15 @@ class Command(BaseCommand):
             self._staff(username, password, role, first_name=first, last_name=last)
         # One agent per department so automatic assignment always finds someone.
         for department in Department.objects.all():
+            first, last = TEAM_AGENTS.get(department.code, (department.name.split()[0], "Agent"))
             agent = self._staff(f"agent_{department.code.lower()}", password, User.Role.AGENT,
-                                first_name=department.name.split()[0], last_name="Agent")
+                                first_name=first, last_name=last)
             if agent.department_id is None:
                 agent.department = department
                 agent.save(update_fields=["department"])
+            if agent.last_name == "Agent" and (first, last) != (agent.first_name, agent.last_name):
+                agent.first_name, agent.last_name = first, last  # older demo data used the team name as a name
+                agent.save(update_fields=["first_name", "last_name"])
 
         devices = list(Product.objects.filter(kind=Product.Kind.DEVICE))
         services = list(Product.objects.filter(kind=Product.Kind.SERVICE))

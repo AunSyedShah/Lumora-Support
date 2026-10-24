@@ -5,6 +5,7 @@ from ninja import NinjaAPI
 from accounts.api import router as accounts_router
 from accounts.auth import JWTAuth
 from catalog.api import router as catalog_router
+from chatbot.api import router as chatbot_router
 from complaints.api import orders_router
 from complaints.api import router as complaints_router
 from genai_pipeline.api import router as genai_router
@@ -28,6 +29,7 @@ api.add_router("/rules", rules_router)
 api.add_router("/complaints", complaints_router)
 api.add_router("/orders", orders_router)
 api.add_router("/genai", genai_router)
+api.add_router("/chatbot", chatbot_router)
 api.add_router("/validation", validation_router)
 api.add_router("/workflow", workflow_router)
 api.add_router("/dashboard", dashboard_router)

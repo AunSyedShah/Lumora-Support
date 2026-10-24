@@ -12,6 +12,7 @@ https://docs.djangoproject.com/en/6.1/ref/settings/
 
 import os
 import sys
+from decimal import Decimal
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -55,6 +56,8 @@ INSTALLED_APPS = [
     'workflow',
     'reports',
     'complaint_dataset',
+    'chatbot',
+    'email_agent',
 ]
 
 AUTH_USER_MODEL = 'accounts.User'
@@ -100,6 +103,16 @@ DATABASES = {
 }
 
 
+# Password hashing: Argon2 first (strong and ~100x faster to check than PBKDF2 at Django's 1.5M
+# iterations, which made every sign-in take seconds). Older PBKDF2 hashes still verify and are
+# upgraded to Argon2 automatically at the user's next sign-in.
+PASSWORD_HASHERS = [
+    'django.contrib.auth.hashers.Argon2PasswordHasher',
+    'django.contrib.auth.hashers.PBKDF2PasswordHasher',
+    'django.contrib.auth.hashers.PBKDF2SHA1PasswordHasher',
+]
+
+
 # Password validation
 # https://docs.djangoproject.com/en/6.1/ref/settings/#auth-password-validators
 
@@ -124,7 +137,8 @@ AUTH_PASSWORD_VALIDATORS = [
 
 LANGUAGE_CODE = 'en-us'
 
-TIME_ZONE = 'UTC'
+# Local time for dates shown in reports and for grouping complaints by day (the UI shows browser time).
+TIME_ZONE = os.getenv('TIME_ZONE', 'Asia/Karachi')
 
 USE_I18N = True
 
@@ -145,11 +159,6 @@ KB_MAX_UPLOAD_MB = int(os.getenv('KB_MAX_UPLOAD_MB', 10))
 # Email
 # https://docs.djangoproject.com/en/6.1/topics/email/#topic-email-configuration
 
-MAILERS = {
-    'default': {
-        'BACKEND': 'django.core.mail.backends.console.EmailBackend',
-    },
-}
 
 
 # Fast (insecure) hashing only while running tests, so the suite doesn't crawl.
@@ -223,3 +232,68 @@ PROHIBITED_ACTION_SIMILARITY = float(os.getenv('PROHIBITED_ACTION_SIMILARITY', 0
 
 # Fixed app-level id sent to DeepSeek (never a customer id: the context cache is isolated per user_id).
 GENAI_USER_ID = os.getenv('GENAI_USER_ID', 'supportnova-pipeline1')
+
+# Customer chat assistant (Agno agent over the shared policy documents)
+CHATBOT_USER_ID = os.getenv('CHATBOT_USER_ID', 'supportnova-chat')
+CHATBOT_TEMPERATURE = float(os.getenv('CHATBOT_TEMPERATURE', 0.2))
+CHATBOT_MAX_TOKENS = int(os.getenv('CHATBOT_MAX_TOKENS', 600))
+CHATBOT_CHUNKS = int(os.getenv('CHATBOT_CHUNKS', 5))  # document excerpts handed to the assistant per question
+# An excerpt must share several words with the question, or be at least this close in meaning, to be used at all.
+CHATBOT_MIN_SIMILARITY = float(os.getenv('CHATBOT_MIN_SIMILARITY', 0.55))
+CHATBOT_RATE_LIMIT = int(os.getenv('CHATBOT_RATE_LIMIT', 20))  # questions per person per window
+CHATBOT_RATE_WINDOW_SECONDS = int(os.getenv('CHATBOT_RATE_WINDOW_SECONDS', 600))
+
+# Shop orders (no payment is taken: payment is arranged on delivery). The delivery times follow the Delivery and Shipping
+# Policy (standard 3-5 business days from dispatch, express 1-2); the express fee amount is not in the policy, so set it here.
+EXPRESS_SHIPPING_FEE = Decimal(os.getenv('EXPRESS_SHIPPING_FEE', '9.00'))
+STANDARD_DELIVERY_DAYS = int(os.getenv('STANDARD_DELIVERY_DAYS', 5))  # business days from the order date, the upper end of the policy
+EXPRESS_DELIVERY_DAYS = int(os.getenv('EXPRESS_DELIVERY_DAYS', 2))
+ORDER_MAX_QUANTITY = int(os.getenv('ORDER_MAX_QUANTITY', 5))
+ORDER_MAX_PER_DAY = int(os.getenv('ORDER_MAX_PER_DAY', 10))  # orders one customer can place in a day
+
+# Email assistant: the same agent answering customers' emails. An administrator switches it on (Settings > Customer chat).
+# imap = the IMAP / SMTP settings below (Gmail: an app password, no OAuth); gmail = Agno's GmailTools (Google OAuth,
+# then `manage.py gmail_login` once).
+EMAIL_AGENT_TRANSPORT = os.getenv('EMAIL_AGENT_TRANSPORT', 'imap')
+EMAIL_AGENT_THREAD = os.getenv('EMAIL_AGENT_THREAD', 'true').lower() == 'true'  # listen in a background thread of the web server
+EMAIL_AGENT_POLL_SECONDS = int(os.getenv('EMAIL_AGENT_POLL_SECONDS', 30))
+EMAIL_AGENT_BATCH = int(os.getenv('EMAIL_AGENT_BATCH', 10))  # emails read per round
+EMAIL_AGENT_SINCE_DAYS = int(os.getenv('EMAIL_AGENT_SINCE_DAYS', 2))  # only unread mail this recent is looked at (an old backlog is never touched)
+EMAIL_AGENT_SCAN = int(os.getenv('EMAIL_AGENT_SCAN', 300))  # most recent unread emails whose sender is checked per round
+EMAIL_AGENT_MAX_ATTEMPTS = int(os.getenv('EMAIL_AGENT_MAX_ATTEMPTS', 3))  # then the customer's message is logged as a complaint
+EMAIL_AGENT_MAX_PER_HOUR = int(os.getenv('EMAIL_AGENT_MAX_PER_HOUR', 6))  # emails answered per sender per hour
+EMAIL_AGENT_ADDRESS = os.getenv('EMAIL_AGENT_ADDRESS', '')  # the support mailbox itself (mail from it is never answered)
+GOOGLE_CLIENT_ID = os.getenv('GOOGLE_CLIENT_ID', '')
+GOOGLE_CLIENT_SECRET = os.getenv('GOOGLE_CLIENT_SECRET', '')
+GOOGLE_PROJECT_ID = os.getenv('GOOGLE_PROJECT_ID', '')
+GMAIL_CREDENTIALS_PATH = os.getenv('GMAIL_CREDENTIALS_PATH', str(BASE_DIR / 'gmail_credentials.json'))
+GMAIL_TOKEN_PATH = os.getenv('GMAIL_TOKEN_PATH', str(BASE_DIR / 'gmail_token.json'))  # the signed-in mailbox: never commit
+
+# Email to customers (SMTP) and reading their replies from the support inbox (IMAP, manage.py fetch_emails).
+# Without EMAIL_HOST nothing is sent: each email is saved as a file in sent_emails/ instead.
+SMTP_HOST = os.getenv('EMAIL_HOST', '')
+SMTP_USER = os.getenv('EMAIL_HOST_USER', '')
+SMTP_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '')
+if SMTP_HOST:
+    MAILERS = {'default': {'BACKEND': 'django.core.mail.backends.smtp.EmailBackend', 'OPTIONS': {
+        'host': SMTP_HOST,
+        'port': int(os.getenv('EMAIL_PORT', 587)),
+        'username': SMTP_USER,
+        'password': SMTP_PASSWORD,
+        'use_tls': os.getenv('EMAIL_USE_TLS', 'true').lower() == 'true',
+        'timeout': 20,
+    }}}
+else:
+    MAILERS = {'default': {'BACKEND': 'django.core.mail.backends.filebased.EmailBackend',
+                           'OPTIONS': {'file_path': BASE_DIR / 'sent_emails'}}}
+# A real mail server can be slow (or stall on a bad address): send notifications in the background so the customer's click
+# never waits for it. Without a mail server (files) and in tests they are written straight away.
+EMAIL_IN_BACKGROUND = bool(SMTP_HOST) and 'test' not in sys.argv
+DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'Lumora Support <support@lumora.example>')
+IMAP_HOST = os.getenv('IMAP_HOST', '')
+IMAP_PORT = int(os.getenv('IMAP_PORT', 993))
+IMAP_USER = os.getenv('IMAP_USER', '') or SMTP_USER
+IMAP_PASSWORD = os.getenv('IMAP_PASSWORD', '') or SMTP_PASSWORD
+IMAP_FOLDER = os.getenv('IMAP_FOLDER', 'INBOX')
+# Where customers open their complaint (used for the link in emails)
+FRONTEND_URL = os.getenv('FRONTEND_URL', 'http://localhost:5173')

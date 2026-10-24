@@ -28,5 +28,10 @@ class User(AbstractUser):
         "catalog.Department", on_delete=models.SET_NULL, null=True, blank=True, related_name="staff"
     )
 
+    @property
+    def display_name(self):
+        """The name people read in the app; the username when no name was given."""
+        return self.get_full_name() or self.username
+
     def __str__(self):
         return f"{self.username} ({self.role})"

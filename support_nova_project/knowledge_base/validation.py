@@ -76,13 +76,41 @@ def _match_choice(value, choices, field):
     raise DocumentValidationError(f"Invalid {field} '{value}'. Allowed: {allowed}.")
 
 
+# What a document's kind can be told from: its ID ("REF-POL") or its title ("Complaint Handling SOP").
+# The first match wins; the order puts the more specific words first.
+KIND_HINTS = [
+    ("sop", ("SOP", "procedure")),
+    ("faq", ("FAQ", "frequently asked")),
+    ("sla", ("SLA", "service level")),
+    ("routing", ("RUL", "routing")),
+    ("template", ("TPL", "template")),
+    ("compliance", ("GDL", "CPL", "compliance", "guideline")),
+    ("policy", ("POL", "policy", "terms")),
+]
+
+
+def infer_doc_type(doc_id, title):
+    """Best guess of the document kind, or None when nothing in the ID or title says."""
+    id_parts = set(re.split(r"[^A-Za-z0-9]+", str(doc_id or "").upper()))
+    title = str(title or "").lower()
+    for kind, words in KIND_HINTS:
+        if any(w.upper() in id_parts or (w.islower() and w in title) for w in words):
+            return kind
+    return None
+
+
+FIELD_LABELS = {"doc_id": "document ID (doc_id)", "version": "version", "doc_type": "kind (doc_type)",
+                "effective_date": "start date (effective_date)"}
+
+
 def validate_metadata(meta: dict) -> dict:
     """Normalise and check the merged metadata (form fields + document header)."""
     missing = [f for f in ("doc_id", "version", "doc_type", "effective_date") if not meta.get(f)]
     if missing:
         raise DocumentValidationError(
-            f"Missing required metadata: {', '.join(missing)}. "
-            "Send them as form fields or put them in the document header."
+            f"Missing required details: {', '.join(FIELD_LABELS[f] for f in missing)}. "
+            "Fill them in on the form, or add a line at the top of the document such as "
+            "'Document ID: REF-POL | Version: 2.0 | Type: Policy' and 'Effective Date: 2026-01-01'."
         )
 
     clean = dict(meta)

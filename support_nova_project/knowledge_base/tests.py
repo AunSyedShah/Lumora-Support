@@ -1,3 +1,4 @@
+from datetime import date
 import shutil
 import tempfile
 
@@ -126,6 +127,31 @@ class KnowledgeBaseApiTests(TestCase):
         self.assertEqual(res.status_code, 400)
         self.assertIn("doc_id", res.json()["detail"])
 
+    def test_missing_id_and_version_are_named_in_plain_words(self):
+        res = self.upload("plain.txt", b"1. Scope\nSome policy text without any header information at all.")
+        detail = res.json()["detail"]
+        self.assertEqual(res.status_code, 400)
+        self.assertIn("document ID", detail)
+        self.assertIn("version", detail)
+        self.assertNotIn("kind", detail)  # the kind and start date are worked out, never asked for
+        self.assertNotIn("start date", detail)
+
+    def test_missing_kind_is_inferred_and_start_date_defaults_to_today(self):
+        body = b"1. Returns\nCustomers may return unused items within thirty days of delivery for a refund."
+        res = self.upload("faq.txt", body, doc_id="GEN-FAQ", version="1.0", status="draft")
+        self.assertEqual(res.status_code, 201, res.content)
+        doc = res.json()["document"]
+        self.assertEqual(doc["doc_type"], "faq")  # from the ID
+        self.assertEqual(doc["effective_date"], date.today().isoformat())
+        notes = " ".join(res.json()["warnings"])
+        self.assertIn("what kind it is", notes)
+        self.assertIn("takes effect today", notes)
+
+    def test_unknown_kind_falls_back_to_policy(self):
+        body = b"1. Rules\nSome organisation wide rules that every team has to follow every single day."
+        res = self.upload("x.txt", body, doc_id="ABC-123", version="2.0", status="draft")
+        self.assertEqual(res.json()["document"]["doc_type"], "policy")
+
     def test_form_values_override_header(self):
         res = self.upload("a.txt", text_doc(status="Active"), status="draft", doc_id="FORM-ID")
         doc = res.json()["document"]
@@ -148,12 +174,15 @@ class KnowledgeBaseApiTests(TestCase):
         self.assertEqual(self.client.get("/api/kb/documents", **self.headers(self.customer)).status_code, 403)
         self.assertEqual(self.client.get("/api/kb/documents", **self.headers(self.agent)).status_code, 200)
 
-    def test_only_drafts_can_be_deleted(self):
+    def test_any_version_can_be_deleted_by_an_admin_only(self):
         active = self.upload("a.txt", text_doc(version="1.0")).json()["document"]
         draft = self.upload("b.txt", text_doc(version="2.0", status="Draft")).json()["document"]
+        self.assertEqual(self.client.delete(f"/api/kb/documents/{draft['id']}", **self.headers(self.agent)).status_code, 403)
         admin = self.headers(self.admin)
-        self.assertEqual(self.client.delete(f"/api/kb/documents/{active['id']}", **admin).status_code, 409)
+        self.assertEqual(self.client.delete(f"/api/kb/documents/{active['id']}", **admin).status_code, 204)
         self.assertEqual(self.client.delete(f"/api/kb/documents/{draft['id']}", **admin).status_code, 204)
+        self.assertFalse(PolicyDocument.objects.exists())
+        self.assertEqual(self.client.delete(f"/api/kb/documents/{draft['id']}", **admin).status_code, 404)
 
     # ---------- retrieval ----------
 

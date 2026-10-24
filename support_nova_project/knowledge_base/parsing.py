@@ -131,7 +131,7 @@ def extract_header_metadata(parsed: ParsedDocument) -> dict:
         if SECTION_START.match(block.text):
             break
         if not METADATA_LINE.search(block.text):
-            found["title"] = block.text[:200]
+            found["title"] = re.sub(r"^title\s*:\s*", "", block.text, flags=re.IGNORECASE)[:200]
             break
     return found
 

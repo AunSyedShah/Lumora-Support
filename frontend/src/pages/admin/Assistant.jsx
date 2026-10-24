@@ -1,6 +1,8 @@
 import { useState } from 'react'
 
 import { api, errorMessage } from '../../api/client'
+import { AiConnectionCard } from '../../components/AiStatus'
+import AiUsageCard from '../../components/AiUsage'
 import { Badge, Button, Card, ErrorNotice, Loading, SectionTitle, SuccessNotice } from '../../components/ui'
 import { formatDate } from '../../lib/format'
 import { useApi } from '../../lib/useApi'
@@ -128,6 +130,8 @@ export default function Assistant() {
 
   return (
     <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.6fr)]">
+      <AiConnectionCard />
+      <AiUsageCard />
       <Card className="flex flex-col gap-4 p-6">
         <SectionTitle>Instruction versions</SectionTitle>
         <p className="m-0 text-[15px] text-muted">The assistant follows these instructions when it reads a new complaint. Our rules always check its suggestion afterwards.</p>

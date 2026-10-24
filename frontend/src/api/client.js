@@ -53,11 +53,14 @@ api.interceptors.request.use((config) => {
 
 let refreshing = null // one refresh at a time, shared by requests that fail together
 
+// Signing in, registering and refreshing are never retried (a 401 there means wrong details).
+const NO_RETRY = ['/auth/login', '/auth/register', '/auth/refresh']
+
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
     const original = error.config
-    const expired = error.response?.status === 401 && !original?._retried && !original?.url?.startsWith('/auth/')
+    const expired = error.response?.status === 401 && !original?._retried && !NO_RETRY.includes(original?.url)
     if (expired && tokens.refresh) {
       original._retried = true
       refreshing ??= axios

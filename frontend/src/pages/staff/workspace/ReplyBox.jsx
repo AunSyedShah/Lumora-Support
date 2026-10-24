@@ -6,21 +6,27 @@ import { Button, ErrorNotice, SuccessNotice } from '../../../components/ui'
 import { formatDateTime } from '../../../lib/format'
 import { replyProblem } from '../../../lib/labels'
 
+/** "Dear customer," -> "Dear Sara," when we know the customer's name. */
+function personalise(text, firstName) {
+  return firstName ? (text || '').replace(/^(Dear|Hi|Hello) customer\b/i, `$1 ${firstName}`) : text
+}
+
 /**
  * The reply to the customer, pre-filled with the suggested reply. Every reply is checked by the
  * API before it goes out; a reviewer can still send it with a written reason.
  */
-export default function ReplyBox({ complaint, blocked, onSent }) {
+export default function ReplyBox({ complaint, blocked, canReview = false, onSent }) {
   const { user } = useAuth()
   const alreadySent = Boolean(complaint.response_sent_at)
-  const [text, setText] = useState(alreadySent ? '' : complaint.response_text)
+  const fullName = complaint.customer_name || complaint.customer
+  const firstName = complaint.customer_name && complaint.customer_name !== complaint.customer ? complaint.customer_name.split(' ')[0] : null
+  const [text, setText] = useState(alreadySent ? '' : personalise(complaint.response_text, firstName))
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [problem, setProblem] = useState(null)
   const [override, setOverride] = useState('')
   const [sent, setSent] = useState('')
   const canOverride = FULL_ACCESS_ROLES.includes(user.role)
-  const firstName = complaint.customer
 
   async function send(withOverride = false) {
     setBusy(true)
@@ -49,7 +55,7 @@ export default function ReplyBox({ complaint, blocked, onSent }) {
   return (
     <div className="flex flex-col gap-2.5">
       <label htmlFor="reply" className="font-display text-lg font-bold">
-        {alreadySent ? 'Send another reply' : `Your reply to ${firstName}`}
+        {alreadySent ? 'Send another reply' : `Your reply to ${fullName}`}
       </label>
       {alreadySent && <p className="m-0 text-sm text-muted">Last reply sent {formatDateTime(complaint.response_sent_at)}.</p>}
       {complaint.resolution?.response_requires_rewrite && !alreadySent && (
@@ -89,7 +95,15 @@ export default function ReplyBox({ complaint, blocked, onSent }) {
         <Button onClick={() => send(false)} disabled={busy || blocked || !text.trim()}>
           {busy ? 'Sending…' : 'Send reply'}
         </Button>
-        {blocked && <span className="text-sm text-muted">You can reply once the second look is done.</span>}
+        {blocked && canReview && (
+          <span className="text-sm text-muted">
+            This needs a second look first, and you can do it yourself.{' '}
+            <a href="#second-look" className="font-semibold text-forest">
+              Go to the second look
+            </a>
+          </span>
+        )}
+        {blocked && !canReview && <span className="text-sm text-muted">A reviewer is checking this first. You can reply as soon as they approve it.</span>}
       </div>
     </div>
   )

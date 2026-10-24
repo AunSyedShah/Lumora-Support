@@ -71,6 +71,10 @@ export const SLA = {
 }
 export const SLA_TONE = { at_risk: 'sun', breached: 'warn', missed: 'warn' }
 
+// Sentiment (SRS Step 17) in everyday words. It shapes the tone of the reply, never the priority.
+export const SENTIMENT = { Positive: 'Positive', Neutral: 'Calm', Negative: 'Unhappy', 'Strongly Negative': 'Very unhappy' }
+export const SENTIMENT_TONE = { Negative: 'soft', 'Strongly Negative': 'warn' }
+
 /*
  * Why a complaint needs a second look. The API returns sentences written for developers
  * ("Critical finding (escalation): ..."), so they are recognised by their wording and replaced.

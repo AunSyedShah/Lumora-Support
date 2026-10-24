@@ -27,6 +27,29 @@ class AnalysisSummaryOut(Schema):
         return len(obj.attempts)
 
 
+class AiUsageRow(Schema):
+    prompt_version: str
+    calls: int
+    failed: int
+    input_tokens: int
+    cached_tokens: int
+    cached_percent: float
+    output_tokens: int
+    average_seconds: float
+
+
+class AiUsageOut(Schema):
+    total: AiUsageRow
+    by_version: list[AiUsageRow]
+
+
+class AiStatusOut(Schema):
+    ok: bool
+    kind: str | None  # not_configured | auth | balance | rate_limit | unreachable | unavailable | rejected | other
+    message: str | None  # plain words for staff
+    since: datetime | None
+
+
 class AnalysisOut(AnalysisSummaryOut):
     generation_config: dict
     policy_versions: dict

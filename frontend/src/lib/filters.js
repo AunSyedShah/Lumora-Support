@@ -1,3 +1,5 @@
+import { localDate } from './format'
+
 export const PERIODS = [
   { value: '7', label: 'Last 7 days' },
   { value: '14', label: 'Last 14 days' },
@@ -6,15 +8,15 @@ export const PERIODS = [
   { value: '', label: 'All time' },
 ]
 
-/** The same filters on the overview, reports and complaint list: dates, team, problem type, priority, channel. */
+/** The same filters on the overview, reports and complaint list: dates, team, problem type, priority, mood, channel. */
 export function filterParams(filters) {
   const params = {}
   if (filters.days) {
     const from = new Date(Date.now() - Number(filters.days) * 24 * 3600 * 1000)
-    params.date_from = from.toISOString().slice(0, 10)
+    params.date_from = localDate(from)
   }
-  for (const key of ['department', 'category', 'priority', 'channel']) if (filters[key]) params[key] = filters[key]
+  for (const key of ['department', 'category', 'priority', 'sentiment', 'channel']) if (filters[key]) params[key] = filters[key]
   return params
 }
 
-export const EMPTY_FILTERS = { days: '14', department: '', category: '', priority: '', channel: '' }
+export const EMPTY_FILTERS = { days: '14', department: '', category: '', priority: '', sentiment: '', channel: '' }

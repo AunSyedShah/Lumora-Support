@@ -11,6 +11,7 @@ from django.conf import settings
 from django.db import models
 
 from complaints.models import Complaint
+from complaints.preprocessing import mask_card_numbers
 
 
 class AuditLog(models.Model):
@@ -55,6 +56,11 @@ class ComplaintNote(models.Model):
 
     class Meta:
         ordering = ["created_at", "id"]
+
+    def save(self, *args, **kwargs):
+        # Replies and notes are free text too: never store a card number (same rule as complaints).
+        self.text = mask_card_numbers(self.text)[0]
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return f"{self.complaint.complaint_id}: {self.text[:40]}"

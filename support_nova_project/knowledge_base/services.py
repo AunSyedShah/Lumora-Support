@@ -9,15 +9,20 @@ from catalog.models import Category
 from vector_search.embeddings import embed_texts, to_bytes
 
 from .chunking import chunk_blocks
-from .models import DocumentStatus, PolicyChunk, PolicyDocument
+from .models import DocumentStatus, DocumentType, PolicyChunk, PolicyDocument
 from .parsing import count_header_blocks, extract_header_metadata, parse_file
 from .validation import (
     DocumentValidationError,
     check_duplicate_file,
     file_sha256,
+    infer_doc_type,
     validate_file,
     validate_metadata,
 )
+
+# Plain words for the note shown to the admin after an upload.
+HEADER_NOTE = "Taken from the document itself:"
+FIELD_NAMES = {"doc_id": "document ID", "doc_type": "kind", "effective_date": "start date", "expiry_date": "end date"}
 
 
 def ingest_document(filename: str, data: bytes, form_meta: dict, user):
@@ -47,8 +52,19 @@ def ingest_document(filename: str, data: bytes, form_meta: dict, user):
     form_values = {k: v for k, v in form_meta.items() if v not in (None, "")}
     taken_from_header = sorted(set(header_meta) - set(form_values))
     if taken_from_header:
-        warnings.append(f"Read from document header: {', '.join(taken_from_header)}.")
-    meta = validate_metadata({**header_meta, **form_values})
+        names = [FIELD_NAMES.get(field, field.replace("_", " ")) for field in taken_from_header]
+        warnings.append(f"{HEADER_NOTE} {', '.join(names)}.")
+    merged = {**header_meta, **form_values}
+    # The kind and the start date can be worked out, so a missing one never blocks an upload; say what was assumed.
+    if not merged.get("doc_type"):
+        kind = infer_doc_type(merged.get("doc_id"), merged.get("title") or filename) or DocumentType.POLICY
+        merged["doc_type"] = kind
+        warnings.append(f"The document doesn't say what kind it is, so it was saved as \"{DocumentType(kind).label}\". "
+                        "Change it if that is wrong.")
+    if not merged.get("effective_date"):
+        merged["effective_date"] = date.today().isoformat()
+        warnings.append("No start date was given, so it takes effect today.")
+    meta = validate_metadata(merged)
 
     category = None
     if meta.get("category"):

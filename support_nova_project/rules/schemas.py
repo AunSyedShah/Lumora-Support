@@ -123,6 +123,15 @@ class EscalationRuleUpdate(_WithConditions):
     is_active: bool | None = None
 
 
+class KeywordSuggestionOut(Schema):
+    subcategory: str
+    subcategory_name: str
+    phrase: str
+    seen_in: int  # complaints the rules missed (or a person reclassified) that contain the phrase
+    also_in_other_problems: int  # complaints of other problems that contain it too (lower is better)
+    examples: list[str]  # complaint numbers
+
+
 # ---------- import / evaluate / policy check ----------
 
 

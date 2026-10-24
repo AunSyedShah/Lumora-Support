@@ -4,6 +4,7 @@ normal intake (no GenAI processing - evaluate_dataset does that).
 
 Usage:  python manage.py load_dataset            # loads what is not loaded yet
         python manage.py load_dataset --reset    # remove the dataset customers/complaints first
+        python manage.py load_dataset --spread-days 60   # also spread the dataset's dates over 60 days
 """
 
 from collections import Counter
@@ -12,7 +13,7 @@ from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
 
 from complaint_dataset.csv_io import COMPLAINTS_FILE, read_rows, spec_from_row, text_from_row
-from complaint_dataset.loader import load_dataset, remove_dataset
+from complaint_dataset.loader import load_dataset, remove_dataset, spread_dates
 
 
 class Command(BaseCommand):
@@ -20,6 +21,9 @@ class Command(BaseCommand):
 
     def add_arguments(self, parser):
         parser.add_argument("--reset", action="store_true", help="Delete previously loaded dataset data first.")
+        parser.add_argument("--spread-days", type=int, default=0,
+                            help="Spread all loaded dataset complaints over the last N days (they all arrive "
+                                 "at load time otherwise). Also works on an already-loaded dataset.")
 
     def handle(self, *args, **options):
         if not COMPLAINTS_FILE.exists():
@@ -43,3 +47,6 @@ class Command(BaseCommand):
             self.stdout.write(self.style.WARNING(f"{case.case_id}: {case.load_note}"))
         for case in mismatched:
             self.stdout.write(self.style.WARNING(f"{case.case_id} facts differ from the spec: {case.fact_mismatches}"))
+        if options["spread_days"] > 0:
+            moved = spread_dates(options["spread_days"])
+            self.stdout.write(self.style.SUCCESS(f"Spread {moved} dataset complaints over the last {options['spread_days']} days."))

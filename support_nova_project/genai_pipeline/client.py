@@ -15,10 +15,31 @@ from django.conf import settings
 _client = None
 
 
+# What staff are told for each kind of failure: plain words, no provider internals, no secrets.
+FRIENDLY = {
+    "not_configured": "The AI assistant is not set up: no DeepSeek API key is configured.",
+    "auth": "The AI assistant cannot sign in: the DeepSeek API key is invalid or has been revoked.",
+    "balance": "The AI assistant is out of credit: the DeepSeek account has insufficient balance.",
+    "rate_limit": "The AI assistant is busy: DeepSeek is limiting requests right now.",
+    "unreachable": "The AI assistant cannot be reached: the connection to DeepSeek timed out or failed.",
+    "unavailable": "The AI assistant is having problems: DeepSeek reported a server error.",
+    "rejected": "DeepSeek rejected the request (for example an unknown model name). Check the AI settings.",
+    "other": "The AI assistant returned an unexpected error.",
+}
+
+
 class LLMError(Exception):
-    def __init__(self, message, retryable):
+    """kind says what went wrong (see FRIENDLY); str(error) is the plain-words message, detail the provider's own text."""
+
+    def __init__(self, message, retryable, kind="other", detail=""):
         super().__init__(message)
         self.retryable = retryable
+        self.kind = kind
+        self.detail = detail
+
+
+def _error(kind, retryable, detail=""):
+    return LLMError(FRIENDLY[kind], retryable=retryable, kind=kind, detail=str(detail)[:500])
 
 
 @dataclass
@@ -36,7 +57,7 @@ def _get_client():
     global _client
     if _client is None:
         if not settings.DEEPSEEK_API_KEY:
-            raise LLMError("DEEPSEEK_API_KEY is not configured.", retryable=False)
+            raise _error("not_configured", False)
         _client = openai.OpenAI(
             api_key=settings.DEEPSEEK_API_KEY,
             base_url=settings.DEEPSEEK_BASE_URL,
@@ -72,15 +93,21 @@ def chat_json(messages, model, temperature, max_tokens, thinking="disabled"):
             **_thinking_options(thinking, temperature),
         )
     except openai.AuthenticationError as e:
-        raise LLMError(f"Authentication failed: {e}", retryable=False)
+        raise _error("auth", False, e)
     except openai.BadRequestError as e:
-        raise LLMError(f"Request rejected by the provider: {e}", retryable=False)
-    except (openai.APITimeoutError, openai.APIConnectionError, openai.RateLimitError) as e:
-        raise LLMError(f"{type(e).__name__}: {e}", retryable=True)
+        raise _error("rejected", False, e)
+    except openai.RateLimitError as e:
+        raise _error("rate_limit", True, e)
+    except (openai.APITimeoutError, openai.APIConnectionError) as e:
+        raise _error("unreachable", True, e)
     except openai.APIStatusError as e:
         if e.status_code == 402:
-            raise LLMError("The DeepSeek account has insufficient balance.", retryable=False)
-        raise LLMError(f"Provider error {e.status_code}: {e}", retryable=e.status_code >= 500)
+            raise _error("balance", False, e)
+        if e.status_code == 404:
+            raise _error("rejected", False, e)
+        if e.status_code >= 500:
+            raise _error("unavailable", True, e)
+        raise _error("other", False, e)
 
     choice = response.choices[0]
     usage = response.usage

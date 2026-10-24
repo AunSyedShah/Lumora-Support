@@ -11,6 +11,9 @@ wheels/
 
 # Secrets
 .env
+# Gmail sign-in for the email assistant (OAuth client file and the saved token)
+support_nova_project/gmail_credentials.json
+support_nova_project/gmail_token.json
 
 # Local database
 db.sqlite3
@@ -20,3 +23,6 @@ support_nova_project/media/
 
 # Downloaded embedding model
 support_nova_project/models_cache/
+
+# Emails saved locally when no mail server is set
+support_nova_project/sent_emails/

@@ -1,4 +1,4 @@
-import { PaperclipIcon } from '../../../components/icons'
+import Attachments from '../../../components/Attachments'
 import { formatDateTime, initials } from '../../../lib/format'
 import { CUSTOMER_TYPE } from '../../../lib/labels'
 
@@ -15,11 +15,12 @@ export function Bubble({ fromCustomer, name, at, children }) {
 
 /** The customer's complaint and every message since, as the customer sees them. */
 export default function Conversation({ complaint }) {
-  const customerLabel = `${complaint.customer} · ${CUSTOMER_TYPE[complaint.customer_type] || 'Customer'}`
+  const customerName = complaint.customer_name || complaint.customer
+  const customerLabel = `${customerName} · ${CUSTOMER_TYPE[complaint.customer_type] || 'Customer'}`
   return (
     <div className="flex gap-3.5">
       <div aria-hidden="true" className="flex size-11 shrink-0 items-center justify-center rounded-full bg-mint font-semibold text-forest">
-        {initials(complaint.customer)}
+        {initials(customerName)}
       </div>
       <div className="flex min-w-0 flex-1 flex-col gap-4">
         <Bubble fromCustomer name={customerLabel} at={complaint.created_at}>
@@ -27,7 +28,7 @@ export default function Conversation({ complaint }) {
           {complaint.supporting_information && `\n\n${complaint.supporting_information}`}
         </Bubble>
         {complaint.messages.map((m) => (
-          <Bubble key={`${m.at}-${m.text.slice(0, 16)}`} fromCustomer={m.sender === 'customer'} name={m.sender === 'customer' ? complaint.customer : m.name} at={m.at}>
+          <Bubble key={`${m.at}-${m.text.slice(0, 16)}`} fromCustomer={m.sender === 'customer'} name={m.sender === 'customer' ? customerName : m.name} at={m.at}>
             {m.text}
           </Bubble>
         ))}
@@ -36,16 +37,7 @@ export default function Conversation({ complaint }) {
             <strong className="text-ink">They’d like:</strong> {complaint.requested_resolution}
           </p>
         )}
-        {complaint.attachments.length > 0 && (
-          <div className="flex flex-wrap gap-2 text-sm">
-            {complaint.attachments.map((a) => (
-              <span key={a.id} className="inline-flex items-center gap-1.5 rounded-full bg-sand px-3 py-1.5">
-                <PaperclipIcon size={16} />
-                {a.original_filename}
-              </span>
-            ))}
-          </div>
-        )}
+        <Attachments complaintId={complaint.complaint_id} files={complaint.attachments} />
       </div>
     </div>
   )
@@ -61,7 +53,7 @@ export function FactTiles({ complaint }) {
     f.days_late > 0 && ['Late by', `${f.days_late} working day${f.days_late === 1 ? '' : 's'}`],
     f.days_since_delivery != null && ['Delivered', f.days_since_delivery === 0 ? 'today' : `${f.days_since_delivery} days ago`],
     f.days_since_purchase != null && f.days_since_delivery == null && ['Bought', `${f.days_since_purchase} days ago`],
-    complaint.previous_related_count > 0 && ['Earlier complaints', `${complaint.previous_related_count} about this`],
+    complaint.previous_related_count > 0 && ['Complained before', `${complaint.previous_related_count} time${complaint.previous_related_count === 1 ? '' : 's'} about this`],
   ].filter(Boolean)
   if (!tiles.length) return <p className="m-0 text-[15px] text-muted">No order linked — ask for the order number if you need it.</p>
   return (

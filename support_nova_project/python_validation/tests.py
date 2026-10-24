@@ -229,6 +229,28 @@ class ValidationScenarioTests(TestCase):
         self.assertEqual(self.client.post(f"/api/validation/process/{complaint.complaint_id}",
                                           **self.headers(self.customer)).status_code, 403)
 
+    def test_latest_validation_shows_the_comparison_to_every_staff_member(self):
+        """Agents see how the AI's answer was checked on the complaint itself, not only reviewers."""
+        result = self.validate(output(department="BILLING"))
+        url = f"/api/validation/complaints/{result.complaint.complaint_id}/latest"
+        self.assertEqual(self.client.get(url, **self.headers(self.agent)).status_code, 404)  # not their complaint
+        result.complaint.assigned_to = self.agent
+        result.complaint.save()
+        body = self.client.get(url, **self.headers(self.agent)).json()
+        self.assertTrue(body["genai_available"])
+        self.assertEqual(body["comparison"]["genai_department"], "BILLING")
+        self.assertIn("python_department", body["comparison"])
+        self.assertEqual(body["comparison"]["match"], "mismatch")
+        self.assertTrue(body["checks"])
+        self.assertEqual(self.client.get(url, **self.headers(self.customer)).status_code, 403)
+
+    def test_latest_validation_says_when_the_ai_did_not_answer(self):
+        analysis = GenAIAnalysis.objects.create(complaint=self.complaint(), prompt_template=self.prompt, provider="deepseek",
+                                                model="test", status="failed", error="x")
+        result = validate_analysis(analysis)
+        body = self.client.get(f"/api/validation/complaints/{result.complaint.complaint_id}/latest", **self.headers(self.reviewer)).json()
+        self.assertFalse(body["genai_available"])
+
     def test_comparison_report_csv(self):
         self.validate(output())
         self.validate(output(department="BILLING"))

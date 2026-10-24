@@ -41,21 +41,22 @@ def extract_terms(text, limit=15):
     return terms[:limit]
 
 
-def usable_chunks():
-    """Chunks from documents that are active, already effective and not expired."""
+def usable_chunks(doc_ids=None):
+    """Chunks from documents that are active, already effective and not expired (optionally only these doc_ids)."""
     today = date.today()
-    return PolicyChunk.objects.select_related("document", "document__category").filter(
+    chunks = PolicyChunk.objects.select_related("document", "document__category").filter(
         Q(document__expiry_date__isnull=True) | Q(document__expiry_date__gte=today),
         document__status=DocumentStatus.ACTIVE,
         document__effective_date__lte=today,
     )
+    return chunks if doc_ids is None else chunks.filter(document__doc_id__in=doc_ids)
 
 
 def _sort_key(score, chunk):
     return (-score, chunk.document.precedence, -chunk.document.effective_date.toordinal())
 
 
-def keyword_search(query, category_code=None, limit=5):
+def keyword_search(query, category_code=None, limit=5, doc_ids=None):
     terms = extract_terms(query)
     if not terms:
         return []
@@ -65,7 +66,7 @@ def keyword_search(query, category_code=None, limit=5):
         any_term |= Q(text__icontains=term) | Q(heading__icontains=term)
 
     results = []
-    for chunk in usable_chunks().filter(any_term):
+    for chunk in usable_chunks(doc_ids).filter(any_term):
         text, heading = chunk.text.lower(), chunk.heading.lower()
         score = sum(text.count(t) for t in terms) + 2 * sum(t in heading for t in terms)
         if category_code and chunk.document.category and chunk.document.category.code == category_code:
@@ -79,8 +80,8 @@ def keyword_search(query, category_code=None, limit=5):
 search_policies = keyword_search
 
 
-def semantic_search(query, limit=5):
-    usable = usable_chunks()
+def semantic_search(query, limit=5, doc_ids=None):
+    usable = usable_chunks(doc_ids)
     ids = list(usable.values_list("pk", flat=True))
     if not ids or not query.strip():
         return []
@@ -89,9 +90,9 @@ def semantic_search(query, limit=5):
     return [{"score": round(score, 3), "chunk": chunks[pk]} for pk, score in hits if pk in chunks]
 
 
-def hybrid_search(query, category_code=None, limit=6):
-    keyword = keyword_search(query, category_code=category_code, limit=limit * 2)
-    semantic = semantic_search(query, limit=limit * 2)
+def hybrid_search(query, category_code=None, limit=6, doc_ids=None):
+    keyword = keyword_search(query, category_code=category_code, limit=limit * 2, doc_ids=doc_ids)
+    semantic = semantic_search(query, limit=limit * 2, doc_ids=doc_ids)
 
     fused = {}  # chunk pk -> [rrf score, chunk, keyword score, semantic score]
     for rank, hit in enumerate(keyword, start=1):

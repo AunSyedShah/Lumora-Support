@@ -5,11 +5,11 @@ import { AuthContext } from './context'
 
 export default function AuthProvider({ children }) {
   const [user, setUser] = useState(null)
-  const [loading, setLoading] = useState(Boolean(tokens.access))
+  const [loading, setLoading] = useState(Boolean(tokens.access || tokens.refresh))
 
-  // Restore the session after a page reload.
+  // Restore the session after a page reload (an expired access token is refreshed by the API client).
   useEffect(() => {
-    if (!tokens.access) return
+    if (!tokens.access && !tokens.refresh) return
     api
       .get('/auth/me')
       .then((response) => setUser(response.data))
@@ -34,8 +34,8 @@ export default function AuthProvider({ children }) {
 
   const register = useCallback(
     async (fields) => {
-      await api.post('/auth/register', fields)
-      return login(fields.username, fields.password)
+      const { data } = await api.post('/auth/register', fields)
+      return login(data.username, fields.password) // the username may have been made from the email
     },
     [login],
   )

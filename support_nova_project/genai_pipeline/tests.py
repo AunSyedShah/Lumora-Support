@@ -10,7 +10,10 @@ import shutil
 import tempfile
 from unittest.mock import patch
 
+import httpx
+import openai
 from django.conf import settings
+from django.core.cache import cache
 from django.core.management import call_command
 from django.test import TestCase, override_settings
 
@@ -20,7 +23,7 @@ from complaints.models import Complaint
 from complaints.services import submit_complaint
 from knowledge_base.services import ingest_document
 
-from .client import LLMError, LLMResult
+from .client import FRIENDLY, LLMError, LLMResult, chat_json
 from .context import build_context
 from .models import GenAIAnalysis, PromptTemplate
 from .pipeline import analyze_complaint
@@ -230,6 +233,113 @@ class PipelineTests(BaseGenAITest):
     def test_non_retryable_api_error_stops_immediately(self):
         analysis, mock = self.run_with(LLMError("bad key", retryable=False), llm(json.dumps(VALID_OUTPUT)))
         self.assertEqual((mock.call_count, analysis.status), (1, "failed"))
+
+    def test_api_failures_are_stored_in_plain_words_with_their_kind(self):
+        analysis, _ = self.run_with(LLMError(FRIENDLY["balance"], retryable=False, kind="balance", detail="402 Insufficient Balance"))
+        self.assertEqual(analysis.error, FRIENDLY["balance"])
+        attempt = analysis.attempts[0]
+        self.assertEqual((attempt["kind"], attempt["detail"]), ("balance", "402 Insufficient Balance"))
+
+
+def provider_error(status):
+    request = httpx.Request("POST", "https://api.deepseek.com/chat/completions")
+    return openai.APIStatusError("provider text", response=httpx.Response(status, request=request), body=None)
+
+
+@override_settings(DEEPSEEK_API_KEY="test-key")
+class ClientErrorTests(TestCase):
+    """What each provider failure is called, and that staff never get the provider's raw text."""
+
+    def kind_for(self, error):
+        import genai_pipeline.client as client
+
+        client._client = None
+        with patch("genai_pipeline.client.openai.OpenAI") as factory:
+            factory.return_value.chat.completions.create.side_effect = error
+            with self.assertRaises(LLMError) as ctx:
+                chat_json([{"role": "user", "content": "hi"}], "m", 0, 10)
+        client._client = None
+        return ctx.exception
+
+    def test_no_balance_bad_key_and_outages(self):
+        request = httpx.Request("POST", "https://api.deepseek.com/chat/completions")
+        cases = [
+            (provider_error(402), "balance", False),
+            (provider_error(503), "unavailable", True),
+            (provider_error(404), "rejected", False),
+            (openai.AuthenticationError("bad", response=httpx.Response(401, request=request), body=None), "auth", False),
+            (openai.RateLimitError("slow", response=httpx.Response(429, request=request), body=None), "rate_limit", True),
+            (openai.APIConnectionError(request=request), "unreachable", True),
+            (openai.APITimeoutError(request=request), "unreachable", True),
+        ]
+        for error, kind, retryable in cases:
+            e = self.kind_for(error)
+            self.assertEqual((e.kind, e.retryable), (kind, retryable), kind)
+            self.assertEqual(str(e), FRIENDLY[kind])
+        self.assertIn("insufficient balance", FRIENDLY["balance"])
+
+    @override_settings(DEEPSEEK_API_KEY="")
+    def test_missing_key(self):
+        import genai_pipeline.client as client
+
+        client._client = None
+        with self.assertRaises(LLMError) as ctx:
+            chat_json([{"role": "user", "content": "hi"}], "m", 0, 10)
+        self.assertEqual(ctx.exception.kind, "not_configured")
+
+
+@override_settings(GENAI_RETRY_BACKOFF_SECONDS=0)
+class AiStatusTests(BaseGenAITest):
+    def setUp(self):
+        cache.clear()
+        self.admin = User.objects.create_user("admin1", password="x", role=User.Role.ADMIN)
+        self.agent = User.objects.create_user("agent2", password="x", role=User.Role.AGENT)
+
+    def get(self, user):
+        return self.client.get("/api/genai/status", HTTP_AUTHORIZATION=f"Bearer {create_token(user, ACCESS)}")
+
+    def analyse(self, *responses):
+        with patch("genai_pipeline.pipeline.chat_json", side_effect=list(responses)):
+            return analyze_complaint(self.complaint)
+
+    def test_ok_until_the_provider_fails_and_ok_again_after_a_success(self):
+        self.assertTrue(self.get(self.agent).json()["ok"])  # nothing has happened yet
+        self.analyse(LLMError(FRIENDLY["balance"], retryable=False, kind="balance"))
+        status = self.get(self.agent).json()
+        self.assertEqual((status["ok"], status["kind"], status["message"]), (False, "balance", FRIENDLY["balance"]))
+        self.analyse(llm(json.dumps(VALID_OUTPUT)))
+        self.assertTrue(self.get(self.agent).json()["ok"])
+
+    def test_a_badly_formed_answer_is_not_an_outage(self):
+        self.analyse(*[llm("not json")] * 3)
+        self.assertTrue(self.get(self.agent).json()["ok"])
+
+    def test_usage_adds_up_the_cache_and_is_for_administrators(self):
+        self.analyse(llm(json.dumps(VALID_OUTPUT)))
+        GenAIAnalysis.objects.update(prompt_tokens=1000, cache_hit_tokens=800, completion_tokens=300, latency_ms=4000)
+        headers = lambda u: {"HTTP_AUTHORIZATION": f"Bearer {create_token(u, ACCESS)}"}
+        self.assertEqual(self.client.get("/api/genai/usage", **headers(self.agent)).status_code, 403)
+        body = self.client.get("/api/genai/usage", **headers(self.admin)).json()
+        self.assertEqual((body["total"]["calls"], body["total"]["cached_percent"], body["total"]["output_tokens"]), (1, 80.0, 300))
+        self.assertEqual([r["prompt_version"] for r in body["by_version"]], ["1.3"])
+        self.assertEqual(body["by_version"][0]["average_seconds"], 4.0)
+
+    def test_customers_get_no_status(self):
+        customer = User.objects.create_user("cust9", password="x")
+        self.assertEqual(self.get(customer).status_code, 403)
+
+    def test_admin_check_reports_the_reason_and_overrides_older_failures(self):
+        self.analyse(LLMError(FRIENDLY["balance"], retryable=False, kind="balance"))
+        headers = {"HTTP_AUTHORIZATION": f"Bearer {create_token(self.admin, ACCESS)}"}
+        self.assertEqual(self.client.post("/api/genai/check", **{"HTTP_AUTHORIZATION": f"Bearer {create_token(self.agent, ACCESS)}"}).status_code, 403)
+        with patch("genai_pipeline.health.chat_json", return_value=llm("{}")):
+            checked = self.client.post("/api/genai/check", **headers).json()
+        self.assertTrue(checked["ok"])
+        self.assertTrue(self.get(self.agent).json()["ok"])  # the newer check replaces the old failure
+        with patch("genai_pipeline.health.chat_json", side_effect=LLMError(FRIENDLY["auth"], retryable=False, kind="auth")):
+            checked = self.client.post("/api/genai/check", **headers).json()
+        self.assertEqual((checked["ok"], checked["kind"]), (False, "auth"))
+        self.assertEqual(self.get(self.agent).json()["kind"], "auth")
 
 
 @override_settings(GENAI_RETRY_BACKOFF_SECONDS=0)

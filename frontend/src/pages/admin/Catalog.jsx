@@ -5,6 +5,7 @@ import { Badge, Button, Card, ErrorNotice, Loading, SectionTitle, Select, Succes
 import { PRIORITY } from '../../lib/labels'
 import { refreshTaxonomy } from '../../lib/taxonomy'
 import { useApi } from '../../lib/useApi'
+import KeyPhraseSuggestions from './KeyPhraseSuggestions'
 import { codeFrom, fieldLabel, input } from './style'
 
 const EMPTY_PROBLEM = { code: '', name: '', description: '', department: '', keywords: [], is_fallback: false, takes_precedence_over: [], is_active: true }
@@ -158,6 +159,7 @@ function ProblemTypes({ teams }) {
         </div>
       )}
       <SuccessNotice>{message}</SuccessNotice>
+      <KeyPhraseSuggestions problems={allProblems.data} onAdded={() => (problems.reload(), allProblems.reload())} />
       {editing && (
         <ProblemEditor key={editing.code || 'new'} problem={editing} category={category} problems={allProblems.data || []} teams={teams} onSaved={saved} onClose={() => setEditing(null)} />
       )}
@@ -296,7 +298,7 @@ function ResponseTimes() {
   return (
     <Card className="flex flex-col gap-3 p-6">
       <SectionTitle>Response times</SectionTitle>
-      <p className="m-0 text-[15px] text-muted">In working hours. We warn the team once a complaint has used the given share of its time.</p>
+      <p className="m-0 text-[15px] text-muted">Clock hours, counted around the clock (nights and weekends included). We warn the team once a complaint has used the given share of its time.</p>
       <ErrorNotice message={rules.error} onRetry={rules.reload} />
       <div className="overflow-x-auto">
         <table className="w-full border-collapse text-[15px]">

@@ -5,25 +5,25 @@ from .models import User
 
 
 class RegisterIn(Schema):
-    """Public self-registration. Always creates a customer account."""
+    """Public self-registration. Always creates a standard customer account (premium/business is set by staff)."""
 
-    username: str = Field(min_length=3, max_length=150)
+    username: str | None = Field(None, min_length=3, max_length=150, description="Optional: made from the email if left out")
     email: EmailStr
     password: str = Field(min_length=8)
     first_name: str = ""
     last_name: str = ""
     phone: str = ""
-    customer_type: User.CustomerType = User.CustomerType.STANDARD
 
 
 class UserCreateIn(RegisterIn):
-    """Used by administrators to create staff accounts (agents, reviewers, ...)."""
+    """Used by administrators to create accounts (agents, reviewers, ... or customers with a type)."""
 
     role: User.Role = User.Role.AGENT
+    customer_type: User.CustomerType = User.CustomerType.STANDARD
 
 
 class LoginIn(Schema):
-    username: str
+    username: str = Field(description="Username or email address")
     password: str
 
 
@@ -38,6 +38,8 @@ class TokenOut(Schema):
 
 
 class UserOut(ModelSchema):
+    department: str | None = Field(None, alias="department.code")  # staff: the team they work in
+
     class Meta:
         model = User
         fields = [

@@ -1,11 +1,11 @@
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 
 import Filters from '../../components/Filters'
 import { Badge, Button, EmptyState, ErrorNotice, Loading, PageTitle, Select } from '../../components/ui'
 import { EMPTY_FILTERS, filterParams } from '../../lib/filters'
 import { timeAgo } from '../../lib/format'
-import { PRIORITY, PRIORITY_TONE, STAFF_STATUS } from '../../lib/labels'
+import { PRIORITY, PRIORITY_TONE, SENTIMENT, STAFF_STATUS } from '../../lib/labels'
 import { useTaxonomy } from '../../lib/taxonomy'
 import { useApi } from '../../lib/useApi'
 
@@ -13,6 +13,7 @@ const PAGE_SIZE = 25
 
 const SHOW = [
   { value: '', label: 'Everything' },
+  { value: 'open', label: 'Still open' },
   { value: 'escalated', label: 'Escalated' },
   { value: 'review', label: 'Waiting for a second look' },
   { value: 'flagged', label: 'Tried to instruct our system' },
@@ -20,6 +21,7 @@ const SHOW = [
 ]
 
 function showParams(show) {
+  if (show === 'open') return { open_only: true }
   if (show === 'escalated') return { escalated: true }
   if (show === 'review') return { verification: 'manual_review' }
   if (show === 'flagged') return { flagged_only: true }
@@ -29,9 +31,11 @@ function showParams(show) {
 
 export default function ComplaintList() {
   const names = useTaxonomy()
-  const [filters, setFilters] = useState({ ...EMPTY_FILTERS, days: '' })
-  const [status, setStatus] = useState('')
-  const [show, setShow] = useState('')
+  // Links from the overview can pre-set the filters, e.g. /complaints?show=open&department=BILLING
+  const [searchParams] = useSearchParams()
+  const [filters, setFilters] = useState({ ...EMPTY_FILTERS, days: '', department: searchParams.get('department') || '' })
+  const [status, setStatus] = useState(searchParams.get('status') || '')
+  const [show, setShow] = useState(searchParams.get('show') || '')
   const [search, setSearch] = useState('')
   const [query, setQuery] = useState('')
   const [page, setPage] = useState(1)
@@ -59,7 +63,7 @@ export default function ComplaintList() {
           setPage(1)
         }}
       >
-        <label className="flex min-w-[260px] flex-1 flex-col gap-1 text-[13px] text-muted">
+        <label className="flex min-w-0 flex-1 basis-60 flex-col gap-1 text-[13px] text-muted">
           Search
           <input
             type="search"
@@ -81,10 +85,10 @@ export default function ComplaintList() {
       {list.data && visible.length === 0 && <EmptyState title="No complaints match">Try fewer filters or other words.</EmptyState>}
       {visible.length > 0 && (
         <div className="overflow-x-auto rounded-[22px] bg-white">
-          <table className="w-full min-w-[860px] border-collapse text-[15px]">
+          <table className="w-full min-w-[960px] border-collapse text-[15px]">
             <thead>
               <tr className="text-left text-[13px] text-muted">
-                {['Complaint', 'Customer', 'Problem type', 'Team', 'Priority', 'Status', 'Received'].map((h) => (
+                {['Complaint', 'Customer', 'Problem type', 'Team', 'Priority', 'Mood', 'Status', 'Received'].map((h) => (
                   <th key={h} scope="col" className="border-b border-line-soft px-4 py-3 font-semibold">
                     {h}
                   </th>
@@ -104,10 +108,14 @@ export default function ComplaintList() {
                       {c.match_type === 'repeat' && ' · repeat'}
                     </div>
                   </td>
-                  <td className="border-b border-sand-2 px-4 py-3">{c.customer}</td>
+                  <td className="border-b border-sand-2 px-4 py-3">
+                    {c.customer_name}
+                    {!c.customer_name.includes(c.customer) && <div className="text-[13px] text-muted">{c.customer}</div>}
+                  </td>
                   <td className="border-b border-sand-2 px-4 py-3">{c.category ? names.categoryName(c.category) : <span className="text-muted">Not sorted yet</span>}</td>
                   <td className="border-b border-sand-2 px-4 py-3">{names.departmentName(c.department)}</td>
                   <td className="border-b border-sand-2 px-4 py-3">{c.priority && <Badge tone={PRIORITY_TONE[c.priority]}>{PRIORITY[c.priority]}</Badge>}</td>
+                  <td className="border-b border-sand-2 px-4 py-3">{SENTIMENT[c.sentiment] || <span className="text-muted">—</span>}</td>
                   <td className="border-b border-sand-2 px-4 py-3">{STAFF_STATUS[c.status]}</td>
                   <td className="border-b border-sand-2 px-4 py-3 whitespace-nowrap text-muted">{timeAgo(c.created_at)}</td>
                 </tr>

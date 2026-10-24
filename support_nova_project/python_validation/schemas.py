@@ -3,6 +3,8 @@ from datetime import datetime
 from ninja import Schema
 from pydantic import Field
 
+from .comparison import comparison_row
+
 
 class ValidationOut(Schema):
     id: int
@@ -21,6 +23,16 @@ class ValidationOut(Schema):
 class ValidationDetailOut(ValidationOut):
     independent_expected: dict
     genai_view_expected: dict
+    comparison: dict  # what GenAI said next to what the rule matrix says, field by field (SRS Steps 46-49)
+    genai_available: bool  # False when the AI failed and the rules alone decided
+
+    @staticmethod
+    def resolve_comparison(obj):
+        return comparison_row(obj)
+
+    @staticmethod
+    def resolve_genai_available(obj):
+        return bool(obj.analysis and obj.analysis.output)
 
 
 class ComparisonRowOut(Schema):

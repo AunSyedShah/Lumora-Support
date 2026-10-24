@@ -3,7 +3,7 @@ import tempfile
 
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core.management import call_command
-from django.test import TestCase, override_settings
+from django.test import SimpleTestCase, TestCase, override_settings
 
 from accounts.auth import ACCESS, create_token
 from accounts.models import User
@@ -13,6 +13,7 @@ from .conditions import Facts, evaluate_conditions, format_conditions, normalize
 from .engine import evaluate
 from .importer import RuleImportError, export_resolution_rules, import_resolution_rules
 from .models import EscalationRule, ResolutionRule
+from .suggestions import mine_keywords
 from .references import MISSING_SECTION, NO_USABLE_VERSION, check_reference
 
 
@@ -273,3 +274,61 @@ class PolicyReferenceTests(RuleDataMixin, TestCase):
         res = self.client.get("/api/rules/policy-check", **self.headers(self.agent))
         # No documents loaded in this test DB -> every rule reference is broken
         self.assertEqual(len(res.json()), ResolutionRule.objects.count() + EscalationRule.objects.exclude(policy_id="").count())
+
+
+class KeyPhraseMiningTests(SimpleTestCase):
+    """The miner suggests phrases that point at ONE problem, and nothing risky."""
+
+    def mine(self, evidence, universe=None, picks=None, existing=()):
+        universe = universe if universe is not None else evidence
+        return mine_keywords(evidence, universe, picks or {}, set(existing))
+
+    def test_a_repeated_phrase_is_suggested_with_its_evidence(self):
+        evidence = [
+            (1, "HARDWARE", "the hub keeps dropping connection every night"),
+            (2, "HARDWARE", "my plug keeps dropping connection after an hour"),
+        ]
+        found = self.mine(evidence)
+        self.assertEqual([(s["subcategory"], s["phrase"], s["seen_in"]) for s in found if "dropping connection" in s["phrase"]],
+                         [("HARDWARE", "dropping connection", 2)])
+
+    def test_a_phrase_seen_once_is_not_enough(self):
+        self.assertEqual(self.mine([(1, "HARDWARE", "the hub keeps dropping connection")]), [])
+
+    def test_a_phrase_that_also_describes_other_problems_is_rejected(self):
+        evidence = [(1, "A", "slow response time again"), (2, "A", "very slow response time today")]
+        universe = evidence + [(i, "B", "this slow response time is about billing") for i in (3, 4, 5, 6)]
+        self.assertEqual([s for s in self.mine(evidence, universe) if s["phrase"] == "slow response"], [])
+
+    def test_existing_phrases_and_punctuation_and_numbers(self):
+        evidence = [(1, "A", "order 12345 delayed, shipping label missing"), (2, "A", "order 99999 delayed, shipping label missing")]
+        phrases = {s["phrase"] for s in self.mine(evidence, existing={"shipping label"})}
+        self.assertNotIn("shipping label", phrases)  # already a key phrase
+        self.assertNotIn("delayed shipping", phrases)  # would span a comma: the rule engine could never match it
+        self.assertFalse(any(any(ch.isdigit() for ch in p) for p in phrases))  # no order numbers
+
+    def test_filler_words_are_not_phrases(self):
+        evidence = [(1, "A", "it's supposed to work but it's supposed to fail"), (2, "A", "honestly it's supposed to be fine")]
+        self.assertEqual([s for s in self.mine(evidence) if "supposed" in s["phrase"]], [])
+
+    def test_single_words_need_more_evidence(self):
+        two = [(i, "A", f"the thermostat malfunction number {i}") for i in (1, 2)]
+        three = two + [(3, "A", "another thermostat malfunction here")]
+        self.assertNotIn("malfunction", {s["phrase"] for s in self.mine(two)})
+        self.assertIn("malfunction", {s["phrase"] for s in self.mine(three)})
+
+
+class KeyPhraseSuggestionApiTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        call_command("seed_catalog", verbosity=0)
+        cls.admin = User.objects.create_user("admin1", password="x", role=User.Role.ADMIN)
+        cls.agent = User.objects.create_user("agent1", password="x", role=User.Role.AGENT)
+
+    def get(self, user):
+        return self.client.get("/api/rules/keyword-suggestions", HTTP_AUTHORIZATION=f"Bearer {create_token(user, ACCESS)}")
+
+    def test_only_administrators_and_empty_without_evidence(self):
+        self.assertEqual(self.get(self.agent).status_code, 403)
+        res = self.get(self.admin)
+        self.assertEqual((res.status_code, res.json()), (200, []))

@@ -23,7 +23,10 @@ class Order(models.Model):
     customer = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="orders")
     product = models.ForeignKey(Product, on_delete=models.PROTECT, related_name="orders")
     quantity = models.PositiveSmallIntegerField(default=1)
-    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    amount = models.DecimalField(max_digits=10, decimal_places=2)  # the items: price x quantity
+    shipping_fee = models.DecimalField(max_digits=8, decimal_places=2, default=0)  # express delivery fee (refundable if it arrives late)
+    delivery_address = models.TextField(blank=True)  # orders placed in the shop; empty for older and simulated orders
+    placed_at = models.DateTimeField(null=True, blank=True)  # the moment a customer placed it in the shop (empty for simulated orders)
     express = models.BooleanField(default=False)
     status = models.CharField(max_length=20, choices=Status.choices)
     order_date = models.DateField()

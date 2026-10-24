@@ -16,8 +16,8 @@ from python_validation.models import ValidationResult
 from workflow.lifecycle import sla_status
 
 COLUMNS = [
-    "complaint_id", "created_at", "date", "customer", "customer_type", "channel", "category", "subcategory",
-    "product", "department", "assigned_to", "priority", "urgency", "sentiment", "escalation_level", "escalated",
+    "complaint_id", "title", "created_at", "date", "customer", "customer_type", "channel", "category", "subcategory",
+    "product", "department", "assigned_to", "assigned_to_name", "priority", "urgency", "sentiment", "escalation_level", "escalated",
     "status", "is_open", "verification_status", "verification_score", "review_status", "match_type", "is_repeat",
     "previous_complaints", "resolution_hours", "sla_response", "sla_resolution", "response_sent",
     "has_security_flags", "policy_references", "resolution_rule",
@@ -25,7 +25,7 @@ COLUMNS = [
 
 
 def filtered_complaints(user, date_from=None, date_to=None, department=None, category=None,
-                        priority=None, channel=None):
+                        priority=None, channel=None, sentiment=None):
     """Complaints this user may see (agents: own assignments), narrowed by the common report filters."""
     qs = visible_complaints(user)
     if date_from:
@@ -40,6 +40,8 @@ def filtered_complaints(user, date_from=None, date_to=None, department=None, cat
         qs = qs.filter(priority=priority.upper())
     if channel:
         qs = qs.filter(channel=channel)
+    if sentiment:
+        qs = qs.filter(sentiment__iexact=sentiment)
     return qs
 
 
@@ -53,6 +55,7 @@ def complaint_frame(queryset, now=None):
         escalated = (c.escalation_level or "none") != "none"
         records.append({
             "complaint_id": c.complaint_id,
+            "title": c.title,
             "created_at": c.created_at,
             "date": timezone.localtime(c.created_at).date(),
             "customer": c.customer.username,
@@ -63,6 +66,7 @@ def complaint_frame(queryset, now=None):
             "product": c.product.name if c.product else None,
             "department": c.department.code if c.department else None,
             "assigned_to": c.assigned_to.username if c.assigned_to else None,
+            "assigned_to_name": c.assigned_to.display_name if c.assigned_to else None,
             "priority": c.priority or None,
             "urgency": c.urgency or None,
             "sentiment": c.sentiment or None,
