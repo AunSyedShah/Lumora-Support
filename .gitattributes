@@ -1,0 +1,5 @@
+# Shell scripts must keep Unix line endings or they fail inside Linux containers ("bad interpreter" / "\r: command not found").
+*.sh text eol=lf
+Dockerfile text eol=lf
+*.Dockerfile text eol=lf
+docker-compose.yml text eol=lf

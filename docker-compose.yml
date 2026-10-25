@@ -1,0 +1,91 @@
+# SupportNova for development: one command starts everything.
+#
+#     docker compose up            (add -d to run in the background; the first start takes a few minutes)
+#
+#   Frontend   http://localhost:5173
+#   API docs   http://localhost:8001/api/docs
+#   Database   PostgreSQL on localhost:5433 (user/password/db: supportnova), for pgAdmin, DBeaver, psql ...
+#
+# Your code stays on your PC and is mounted into the containers: edit a file and the page reloads.
+# Settings come from .env (optional; copy .env.example). Everything has a default, so the app starts without it;
+# the AI features need DEEPSEEK_API_KEY.
+
+name: supportnova
+
+x-logging: &logging
+  driver: json-file
+  options: {max-size: "10m", max-file: "3"}
+
+services:
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-supportnova}
+      POSTGRES_USER: ${POSTGRES_USER:-supportnova}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-supportnova}
+    ports:
+      - "127.0.0.1:${DB_PORT:-5433}:5432"   # only reachable from your own PC; 5433 because 5432 is often taken
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    logging: *logging
+
+  backend:
+    build:
+      context: .
+      dockerfile: docker/backend.Dockerfile
+    init: true
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-supportnova}:${POSTGRES_PASSWORD:-supportnova}@db:5432/${POSTGRES_DB:-supportnova}
+      FRONTEND_URL: http://localhost:${FRONTEND_PORT:-5173}
+      # "backend" is the name the frontend container uses to reach this one; add your own host names in .env (ALLOWED_HOSTS=...)
+      ALLOWED_HOSTS: localhost,127.0.0.1,backend,${ALLOWED_HOSTS:-}
+      BACKEND_PORT: ${BACKEND_PORT:-8001}
+      # Switch off a start-up step with 0:
+      RUN_MIGRATIONS: ${RUN_MIGRATIONS:-1}
+      AUTO_BOOTSTRAP: ${AUTO_BOOTSTRAP:-1}        # load the catalog, rules, sample policies and demo accounts when missing
+      BOOTSTRAP_DATASET: ${BOOTSTRAP_DATASET:-0}  # 1 = also the 500 sample complaints
+    volumes:
+      - ./:/app
+    ports:
+      - "${BACKEND_PORT:-8001}:8000"   # 8001, because port 8000 is often already used
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      # Any HTTP answer (even 401 "sign in") means Django is up.
+      test: ["CMD-SHELL", "curl -s -o /dev/null http://localhost:8000/api/chatbot/status"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 1800s   # the first start loads data and downloads the ~190 MB search model
+    logging: *logging
+
+  frontend:
+    build:
+      context: ./frontend
+    init: true
+    environment:
+      API_URL: http://backend:8000   # the dev server forwards /api to the backend container
+      VITE_USE_POLLING: "true"       # file changes on a Windows folder are not announced to containers: check for them
+      FRONTEND_PORT: ${FRONTEND_PORT:-5173}
+    volumes:
+      - ./frontend:/app
+      - frontend_node_modules:/app/node_modules
+    ports:
+      - "${FRONTEND_PORT:-5173}:5173"
+    depends_on:
+      - backend   # started together; the frontend's own start-up waits until the backend answers (so `up` never fails on a slow first start)
+    logging: *logging
+
+volumes:
+  pgdata:
+  frontend_node_modules:

@@ -1,0 +1,6 @@
+# The backend image only needs the dependency files and the docker/ scripts: the code is mounted at run time.
+*
+!pyproject.toml
+!uv.lock
+!.python-version
+!docker/

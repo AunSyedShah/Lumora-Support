@@ -14,8 +14,6 @@ import threading
 from django.conf import settings
 from django.db import close_old_connections
 
-from .service import poll_once
-
 logger = logging.getLogger(__name__)
 _thread = None
 
@@ -27,6 +25,10 @@ class EmailListener(threading.Thread):
         self.stopping = threading.Event()
 
     def run(self):
+        # Imported here, in the background thread: the AI libraries are slow to load and every manage.py command
+        # (migrate, check, shell ...) would otherwise pay for them just to start up.
+        from .service import poll_once
+
         logger.info("Email assistant is listening (every %s s).", self.interval)
         while not self.stopping.is_set():
             try:

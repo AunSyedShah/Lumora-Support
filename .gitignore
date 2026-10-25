@@ -26,3 +26,6 @@ support_nova_project/models_cache/
 
 # Emails saved locally when no mail server is set
 support_nova_project/sent_emails/
+
+# One-time data dumps (contain password hashes)
+docker/data/
