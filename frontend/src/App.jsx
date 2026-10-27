@@ -11,6 +11,7 @@ import ChatAssistant from './pages/admin/ChatAssistant'
 import People from './pages/admin/People'
 import Policies from './pages/admin/Policies'
 import Products from './pages/admin/Products'
+import ReviewRules from './pages/admin/ReviewRules'
 import Rules from './pages/admin/Rules'
 import SettingsLayout from './pages/admin/SettingsLayout'
 import MyComplaints from './pages/customer/MyComplaints'
@@ -83,6 +84,7 @@ export default function App() {
               <Route path="products" element={<Products />} />
               <Route path="assistant" element={<Assistant />} />
               <Route path="chat" element={<ChatAssistant />} />
+              <Route path="second-look" element={<ReviewRules />} />
               <Route path="people" element={<People />} />
             </Route>
           </Route>

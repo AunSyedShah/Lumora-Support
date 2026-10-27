@@ -14,6 +14,7 @@ from rules.engine import evaluate
 from vector_search.embeddings import from_bytes
 
 from . import checks as c
+from . import review_policy
 from .decision import agreement_rate, final_resolution, review_reasons, score
 from .models import ValidationResult
 
@@ -36,7 +37,7 @@ def _failed_result(complaint, analysis, independent):
         complaint=complaint, analysis=analysis, independent_expected=independent, genai_view_expected={},
         checks=[c.check("schema_validation", c.FAIL, c.CRITICAL, None, None, reason)],
         score=0, agreement_rate=0.0, decision=ValidationResult.Decision.MANUAL_REVIEW,
-        review_reasons=[reason], final_resolution={},
+        review_reasons=[reason], final_resolution={}, review_policy_version=review_policy.current()[0],
     )
 
 
@@ -65,10 +66,12 @@ def validate_analysis(analysis: GenAIAnalysis):
     results += c.promise_and_fact_checks(out, view, complaint, policy_texts)
     results += c.consistency_checks(out)
 
-    total = score(results)
+    version, policy = review_policy.current()  # the administrator's second-look rules, recorded with the result
+    total = score(results, policy["penalty"])
     final = final_resolution(out, independent, view, results)
-    reasons = review_reasons(results, total, independent, view, final["escalation_level"], complaint, out)
+    reasons = review_reasons(results, total, independent, view, final["escalation_level"], complaint, out, policy)
     return ValidationResult.objects.create(
+        review_policy_version=version,
         complaint=complaint,
         analysis=analysis,
         independent_expected=independent,

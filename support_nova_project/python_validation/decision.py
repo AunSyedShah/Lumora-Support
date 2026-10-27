@@ -2,11 +2,14 @@
 Comparison engine: verification score, Verified / Manual Review decision, final resolution.
 
 Score (not a model's self-reported confidence - it is calculated from the checks):
-    100 - 25 per critical - 10 per major - 3 per minor finding, never below 0.
+    100 - 25 per critical - 10 per major - 3 per minor finding, never below 0 (the weights are the defaults).
+
+The weights, the cutoff and some of the triggers below are set by an administrator (Settings > Second-look rules,
+see review_policy.py); what is written here are the defaults. The safety triggers can never be switched off.
 
 Manual review (SRS Step 57) when ANY of:
     - a critical finding (e.g. missed escalation, unsupported promise, disallowed compensation)
-    - score below settings.VALIDATION_REVIEW_SCORE
+    - score below the cutoff (default 70)
     - the rules could not classify the complaint / only guessed the rule (ambiguous, missing facts)
     - no applicable policy supports the resolution
     - sensitive case (compliance review or critical-management escalation)
@@ -18,11 +21,10 @@ than the rules, department follows the routing rules, missing mandatory actions 
 disallowed compensation is removed.
 """
 
-from django.conf import settings
-
 from catalog.models import PRIORITY_RANK, URGENCY_RANK
 from rules.models import ESCALATION_RANK, EscalationLevel
 
+from . import review_policy
 from .checks import CRITICAL, FAIL, MAJOR, MINOR, WARNING, expected_escalation
 
 PENALTY = {CRITICAL: 25, MAJOR: 10, MINOR: 3}
@@ -30,8 +32,10 @@ COMPARED_FIELDS = ("category", "subcategory", "department", "urgency", "priority
 SENSITIVE_LEVELS = {EscalationLevel.COMPLIANCE_REVIEW, EscalationLevel.CRITICAL_MANAGEMENT}
 
 
-def score(checks):
-    penalty = sum(PENALTY.get(c["severity"], 0) for c in checks if c["status"] in (FAIL, WARNING))
+def score(checks, weights=None):
+    """100 minus the weight of every failed / warning check. `weights` come from the administrator's settings."""
+    weights = weights or PENALTY
+    penalty = sum(weights.get(c["severity"], 0) for c in checks if c["status"] in (FAIL, WARNING))
     return max(0, 100 - penalty)
 
 
@@ -42,25 +46,39 @@ def agreement_rate(checks):
     return round(sum(c["status"] == "pass" for c in compared) / len(compared), 3)
 
 
-def review_reasons(checks, total, independent, view, final_escalation, complaint, out):
+def _corrected_by_rules(check, view, policy):
+    """A critical finding the final plan already fixes (and the administrator chose not to count)."""
+    if not policy["ignore_corrected_criticals"] or check["name"] not in review_policy.CORRECTED_BY_RULES:
+        return False
+    if check["name"] in ("urgency", "priority"):
+        return bool(view.get("rule_decided", False))  # when the rule was only a guess, the plan is not simply overridden
+    return True
+
+
+def review_reasons(checks, total, independent, view, final_escalation, complaint, out, policy=None):
+    """Why this complaint needs a person (empty = it can go ahead). `policy` is the administrator's settings; see review_policy.py."""
+    policy = policy or review_policy.defaults()
     reasons = []
     for c in checks:
-        if c["status"] == FAIL and c["severity"] == CRITICAL:
+        if c["status"] == FAIL and c["severity"] == CRITICAL and not _corrected_by_rules(c, view, policy):
             reasons.append(f"Critical finding ({c['name']}): {c['message']}")
-    if total < settings.VALIDATION_REVIEW_SCORE:
-        reasons.append(f"Verification score {total} is below {settings.VALIDATION_REVIEW_SCORE}.")
+    if policy["triggers"]["low_score"] and total < policy["score_threshold"]:
+        reasons.append(f"Verification score {total} is below {policy['score_threshold']}.")
     if independent.get("category") is None:
         reasons.append("Complaint is ambiguous: the rule matrix could not classify it.")
     elif not view.get("rule_decided", True):
         reasons.append(f"Eligibility unclear: facts {view.get('missing_facts')} are missing.")
     if any(c["name"] == "policy_support" and c["status"] == FAIL for c in checks):
         reasons.append("Policy support is missing.")
-    if any(c["name"] == "policy_precedence" for c in checks):
+    if policy["triggers"]["policy_contradiction"] and any(c["name"] == "policy_precedence" for c in checks):
         reasons.append("Policy contradiction: lower-precedence document used instead of the governing policy.")
-    if final_escalation in SENSITIVE_LEVELS:
+    if final_escalation in SENSITIVE_LEVELS or final_escalation in policy["sensitive_levels"]:
         reasons.append(f"Sensitive complaint ({final_escalation.replace('_', ' ')}) requires human review.")
     if complaint.security_flags or out.get("manipulation_detected"):
         reasons.append("Possible manipulation / prompt-injection attempt in the complaint.")
+    category = complaint.category
+    if category is not None and category.code in policy["always_review_categories"]:
+        reasons.append(f"Problem type {category.name} is always checked by a person (administrator setting).")
     return list(dict.fromkeys(reasons))
 
 

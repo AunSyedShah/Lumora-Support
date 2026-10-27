@@ -8,6 +8,7 @@ const TABS = [
   ['/settings/catalog', 'Problem types & teams'],
   ['/settings/products', 'Products'],
   ['/settings/assistant', 'Assistant instructions'],
+  ['/settings/second-look', 'Second-look rules'],
   ['/settings/chat', 'Customer chat'],
   ['/settings/people', 'People'],
 ]

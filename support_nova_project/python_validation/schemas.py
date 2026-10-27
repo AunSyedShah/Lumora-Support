@@ -57,3 +57,48 @@ class ComparisonRowOut(Schema):
     verification_status: str
     score: int
     explanation: str
+
+
+class ReviewPolicyVersionOut(Schema):
+    version: int
+    settings: dict
+    comment: str
+    is_active: bool
+    created_by_name: str | None
+    created_at: datetime | None
+
+
+class ReviewPolicyStateOut(Schema):
+    active: ReviewPolicyVersionOut
+    defaults: dict
+    bounds: dict
+    always_on: list[str]
+    triggers: list[dict]
+    optional_sensitive_levels: list[dict]
+    corrected_by_rules: list[str]
+    categories: list[dict]
+    history: list[ReviewPolicyVersionOut]
+
+
+class ReviewPolicyIn(Schema):
+    settings: dict
+    comment: str = ""
+
+
+class ReviewPolicyRollbackIn(Schema):
+    comment: str = ""
+
+
+class ReviewPreviewOut(Schema):
+    checked: int
+    review_now: int
+    review_after: int
+    no_longer_review: int
+    newly_review: int
+    dropped_examples: list[dict]
+    added_examples: list[dict]
+    reasons_after: dict
+    must_review: int
+    must_review_caught_now: int
+    must_review_caught_after: int
+    settings: dict

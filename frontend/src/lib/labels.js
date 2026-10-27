@@ -103,6 +103,7 @@ export function reviewReason(text) {
   if (t.includes('policy contradiction')) return 'It relied on an older or lower-ranked document'
   if (t.includes('sensitive complaint')) return 'Safety, security and privacy cases are always checked by a person'
   if (t.includes('manipulation')) return 'The message tries to give our system instructions'
+  if (t.includes('always checked by a person')) return 'An administrator set this type of problem to always be checked by a person'
   if (t.includes('processing failed')) return 'Automatic handling didn’t work — handle it by hand'
   if (t.includes('could not be produced')) return 'No suggestion could be made — handle it by hand'
   return text

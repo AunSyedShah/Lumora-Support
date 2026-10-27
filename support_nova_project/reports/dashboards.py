@@ -30,6 +30,7 @@ REVIEW_REASON_TYPES = [
     ("policy_contradiction", "Policy contradiction"),
     ("sensitive_complaint", "Sensitive complaint"),
     ("possible_manipulation", "manipulation"),
+    ("required_by_settings", "always checked by a person"),
     ("processing_failed", "Automatic processing failed"),
 ]
 

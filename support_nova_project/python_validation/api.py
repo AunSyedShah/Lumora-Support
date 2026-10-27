@@ -15,6 +15,7 @@ from ninja import Router
 from ninja.errors import HttpError
 
 from accounts.auth import STAFF_ROLES, require_role
+from accounts.models import User
 from accounts.schemas import ErrorOut
 from complaints.models import Complaint
 from complaints.permissions import FULL_ACCESS_ROLES, get_visible_complaint, visible_complaints
@@ -22,9 +23,18 @@ from genai_pipeline.models import GenAIAnalysis
 from genai_pipeline.output_schema import Tone
 from genai_pipeline.prompts import PromptError
 
+from . import review_admin, review_policy
 from .comparison import comparison_row
 from .models import ValidationResult
-from .schemas import ComparisonRowOut, ValidationDetailOut, ValidationOut
+from .schemas import (
+    ComparisonRowOut,
+    ReviewPolicyIn,
+    ReviewPolicyRollbackIn,
+    ReviewPolicyStateOut,
+    ReviewPreviewOut,
+    ValidationDetailOut,
+    ValidationOut,
+)
 from workflow.services import WorkflowError, process_and_apply
 
 from .services import validate_analysis
@@ -108,3 +118,47 @@ def comparison(request, format: str = "json", decision: str | None = None):
     response = HttpResponse(buffer.getvalue(), content_type="text/csv")
     response["Content-Disposition"] = 'attachment; filename="genai_python_comparison.csv"'
     return response
+
+
+# ---------------- second-look rules (administrators) ----------------
+
+
+def _admin(request):
+    require_role(request, User.Role.ADMIN)
+
+
+def _guarded(action, *args):
+    try:
+        return action(*args)
+    except review_policy.ReviewPolicyError as e:
+        raise HttpError(400, str(e))
+
+
+@router.get("/review-policy", response=ReviewPolicyStateOut)
+def review_policy_state(request):
+    """The second-look rules in use, their limits and their history."""
+    _admin(request)
+    return review_admin.state()
+
+
+@router.post("/review-policy/preview", response=ReviewPreviewOut)
+def review_policy_preview(request, data: ReviewPolicyIn):
+    """What these settings would have decided for the complaints checked so far. Nothing is saved."""
+    _admin(request)
+    return _guarded(review_admin.preview, data.settings)
+
+
+@router.post("/review-policy", response=ReviewPolicyStateOut)
+def review_policy_save(request, data: ReviewPolicyIn):
+    """Save the settings as a new version and start using it for the next complaints."""
+    _admin(request)
+    _guarded(review_admin.save, data.settings, data.comment, request.auth)
+    return review_admin.state()
+
+
+@router.post("/review-policy/{int:version}/rollback", response=ReviewPolicyStateOut)
+def review_policy_rollback(request, version: int, data: ReviewPolicyRollbackIn):
+    """Use an earlier version again (saved as a new version; version 0 is the built-in defaults)."""
+    _admin(request)
+    _guarded(review_admin.rollback, version, data.comment, request.auth)
+    return review_admin.state()

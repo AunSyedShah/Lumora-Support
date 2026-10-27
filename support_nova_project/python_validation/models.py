@@ -7,10 +7,28 @@ Pipeline 2 result: the Python ground-truth validation of one GenAI analysis.
 `final_resolution` is the recommendation after the rules have been enforced on top of the GenAI output.
 """
 
+from django.conf import settings
 from django.db import models
 
 from complaints.models import Complaint
 from genai_pipeline.models import GenAIAnalysis
+
+
+class ReviewPolicy(models.Model):
+    """One version of the second-look rules (see review_policy.py). Never edited: a change is a new version; one is active."""
+
+    version = models.PositiveIntegerField(unique=True)
+    config = models.JSONField(default=dict)  # the settings of this version (see review_policy.defaults)
+    comment = models.CharField(max_length=300)  # why it was changed
+    is_active = models.BooleanField(default=False)
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-version"]
+
+    def __str__(self):
+        return f"Second-look rules v{self.version}{' (active)' if self.is_active else ''}"
 
 
 class ValidationResult(models.Model):
@@ -28,6 +46,7 @@ class ValidationResult(models.Model):
     agreement_rate = models.FloatField()  # share of comparable fields where GenAI == Python
     decision = models.CharField(max_length=20, choices=Decision.choices)
     review_reasons = models.JSONField(default=list)
+    review_policy_version = models.PositiveIntegerField(default=0)  # the second-look rules this was decided with (0 = built-in)
     final_resolution = models.JSONField(default=dict)
     created_at = models.DateTimeField(auto_now_add=True)
 
