@@ -39,6 +39,19 @@ set in `.env`.
 Your code stays on your PC and is mounted into the containers: edit a file and the backend restarts / the page
 reloads by itself. `Ctrl+C` stops everything; `docker compose up -d` runs it in the background.
 
+## After you pull changes (already have the containers running?)
+
+```bash
+git pull
+docker compose up -d --build --force-recreate
+```
+
+Do this after **every** `git pull`, even if the containers are already running. The backend and frontend reload code
+by themselves, but database changes (migrations) and new packages are only applied when the containers start, so
+without it you can get errors such as "column does not exist". It is safe: your database and uploaded files are kept
+(Docker volumes are not removed), and unchanged images are reused, so it takes about a minute. Check with
+`docker compose ps` (all three should be Up, backend "healthy") or `docker compose logs -f backend`.
+
 ## Everyday commands
 
 Run these from the repository folder. `backend` is the service name; commands run inside its container.
@@ -56,7 +69,7 @@ Run these from the repository folder. `backend` is the service name; commands ru
 | Rebuild the images (dependency files changed) | `docker compose build` |
 | **Start again from nothing** (deletes the database) | `docker compose down -v` then `docker compose up` |
 
-New migrations are applied on every start, so after pulling someone else's changes `docker compose up` is enough.
+New migrations are applied every time the backend container starts (see "After you pull changes" above).
 Data loading is done once, for whatever is missing (`manage.py bootstrap_data`); it never touches data that is
 already there. The other seed commands (`seed_catalog`, `load_rules`, `load_dataset`, ...) work the same way as
 before, with the `docker compose exec backend uv run manage.py` prefix. `BOOTSTRAP_DATASET=1` in `.env` also loads
