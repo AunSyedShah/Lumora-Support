@@ -35,6 +35,35 @@ services:
       retries: 10
     logging: *logging
 
+  # pgAdmin: browse the tables in your browser. Already connected to the database above; no login (single-user mode).
+  pgadmin:
+    image: dpage/pgadmin4:9
+    restart: unless-stopped
+    entrypoint: ["/bin/sh", "/start.sh"]
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-supportnova}
+      POSTGRES_USER: ${POSTGRES_USER:-supportnova}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-supportnova}
+      PGADMIN_DEFAULT_EMAIL: admin@example.com   # required by the image; not used to sign in in single-user mode
+      PGADMIN_DEFAULT_PASSWORD: ${POSTGRES_PASSWORD:-supportnova}
+      PGADMIN_CONFIG_SERVER_MODE: "False"
+      PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: "False"
+    ports:
+      - "127.0.0.1:${PGADMIN_PORT:-5050}:80"   # only reachable from your own PC
+    volumes:
+      - ./docker/pgadmin/start.sh:/start.sh:ro
+      - pgadmin_data:/var/lib/pgadmin
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost/misc/ping || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 60s
+    logging: *logging
+
   backend:
     build:
       context: .
@@ -88,4 +117,5 @@ services:
 
 volumes:
   pgdata:
+  pgadmin_data:
   frontend_node_modules:

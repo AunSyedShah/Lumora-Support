@@ -21,7 +21,8 @@ sample data and downloads a ~190 MB search model once). Later starts take 1-2 mi
 |---|---|
 | Website | http://localhost:5173 |
 | API documentation | http://localhost:8001/api/docs |
-| Database (pgAdmin, DBeaver, psql) | `localhost:5433`, user / password / database: `supportnova` |
+| **See the database tables (pgAdmin)** | http://localhost:5050 — no login; open Servers > SupportNova (Docker) > Databases > supportnova > Schemas > public > Tables |
+| Database, for your own tools (DBeaver, psql ...) | `localhost:5433`, user / password / database: `supportnova` |
 
 **Sign in** (demo data; the password is `DEMO_PASSWORD`, default `Lumora@2026`):
 
@@ -81,6 +82,7 @@ the 500 sample complaints on the first start.
  your PC (code)  ──mounted──▶  backend container   Django, runs migrations + first-run data, then runserver
                                frontend container  Vite dev server; forwards /api to the backend (no CORS)
                                db container        PostgreSQL 17, data in the Docker volume "pgdata"
+                               pgadmin container   pgAdmin, already connected to the database (browse tables, run SQL)
 ```
 
 - The Python environment lives inside the image (`/opt/venv`), the frontend packages in a Docker volume: the `.venv`
@@ -89,7 +91,9 @@ the 500 sample complaints on the first start.
 - The email assistant listens in the backend container once an administrator switches it on
   (Settings > Customer chat).
 - Ports 8001 / 5433 are used because 8000 / 5432 are often taken. Change them with `BACKEND_PORT`, `DB_PORT`,
-  `FRONTEND_PORT` in `.env`.
+  `FRONTEND_PORT`, `PGADMIN_PORT` (5050) in `.env`.
+- pgAdmin runs in single-user mode with no password and listens on your own PC only (127.0.0.1). It is a
+  development tool: do not publish its port on a shared server. It adds a ~400 MB image to the first download.
 
 ## Moving data between machines (and from the old SQLite file)
 
